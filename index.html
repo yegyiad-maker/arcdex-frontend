@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArcDEX Frontend - Live Connection</title>
+    <title>ArcDEX Frontend - Bi-Directional Swap</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Ethers.js for blockchain interaction -->
@@ -15,6 +15,11 @@
             font-family: 'Inter', sans-serif;
             background-color: #0d1117; /* Dark background */
         }
+        /* Custom scrollbar for better aesthetics */
+        /* Note: This is custom CSS, Tailwind does not have this utility */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
+        ::-webkit-scrollbar-track { background: #161b22; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -22,7 +27,7 @@
     <!-- Main DEX Container -->
     <div id="dex-app" class="w-full max-w-lg bg-[#161b22] shadow-2xl rounded-xl p-6 md:p-8">
         <h1 class="text-3xl font-extrabold text-white text-center mb-6">
-            <span class="text-indigo-400">ArcDEX</span> Swap
+            <span class="text-indigo-400">ArcDEX</span> Interface
         </h1>
 
         <!-- Auth Status & Network Info -->
@@ -36,39 +41,56 @@
             </div>
         </div>
 
-        <!-- Reserves Display -->
+        <!-- Reserves and Balance Display -->
         <div id="reserve-display" class="bg-[#0d1117] p-4 rounded-lg mb-6 border border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-300 mb-2">Pool Reserves</h2>
-            <p id="reserve-a" class="text-sm text-green-400">MYTA: Loading...</p>
-            <p id="reserve-b" class="text-sm text-purple-400">MYTB: Loading...</p>
+            <h2 class="text-lg font-semibold text-gray-300 mb-2">Pool Reserves & Your Balances</h2>
+            <p id="reserve-a" class="text-sm text-green-400">MYTA Reserve: Loading...</p>
+            <p id="reserve-b" class="text-sm text-purple-400">MYTB Reserve: Loading...</p>
+            <hr class="my-2 border-gray-800">
+            <p id="balance-a" class="text-sm text-gray-300">Your MYTA: Loading...</p>
+            <p id="balance-b" class="text-sm text-gray-300">Your MYTB: Loading...</p>
+        </div>
+        
+        <!-- Tab Navigation -->
+        <div class="flex mb-4 border-b border-gray-700">
+            <button id="tab-swap" onclick="showTab('swap')" class="flex-1 py-2 text-center text-lg font-semibold border-b-2 border-indigo-500 text-white transition-colors duration-200 hover:text-indigo-400">
+                Swap
+            </button>
+            <button id="tab-liquidity" onclick="showTab('liquidity')" class="flex-1 py-2 text-center text-lg font-semibold border-b-2 border-transparent text-gray-500 transition-colors duration-200 hover:text-purple-400">
+                Liquidity
+            </button>
         </div>
 
-        <!-- Swap Card -->
-        <div class="bg-[#0d1117] p-5 rounded-lg border border-indigo-700/50">
+        <!-- SWAP CARD -->
+        <div id="swap-card" class="bg-[#0d1117] p-5 rounded-lg border border-indigo-700/50">
             <div class="space-y-4">
-                <!-- Input Token (Token A) -->
+                <!-- Input Token (DYNAMIC) -->
                 <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">You Pay (MYTA)</label>
+                    <label id="label-input" class="block text-sm font-medium text-gray-400 mb-1">You Pay (MYTA)</label>
                     <input type="number" id="input-amount" oninput="updateOutput()" placeholder="0.0"
                            class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
-                    <div class="absolute right-3 top-3 px-3 py-1 bg-indigo-900/50 text-indigo-300 font-semibold rounded-lg">
+                    <div id="symbol-input" class="absolute right-3 top-3 px-3 py-1 bg-indigo-900/50 text-indigo-300 font-semibold rounded-lg">
                         MYTA
                     </div>
                 </div>
 
-                <!-- Swap Direction Icon -->
-                <div class="flex justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L11 6.414V14a1 1 0 11-2 0V6.414L7.707 8.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3z" clip-rule="evenodd" />
-                    </svg>
+                <!-- Swap Direction Icon + FLIP Button -->
+                <div class="flex justify-center -my-2 z-10">
+                    <button onclick="flipTokens()" title="Flip tokens" 
+                            class="p-2 bg-gray-700 border-4 border-[#0d1117] rounded-full text-white shadow-lg transition-transform hover:rotate-180 hover:bg-indigo-500">
+                        <!-- Icon for flip/swap -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L11 6.414V14a1 1 0 11-2 0V6.414L7.707 8.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
                 </div>
 
-                <!-- Output Token (Token B) -->
+                <!-- Output Token (DYNAMIC) -->
                 <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">You Receive (MYTB)</label>
+                    <label id="label-output" class="block text-sm font-medium text-gray-400 mb-1">You Receive (MYTB)</label>
                     <input type="text" id="output-amount" placeholder="0.0" readonly
                            class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
-                    <div class="absolute right-3 top-3 px-3 py-1 bg-purple-900/50 text-purple-300 font-semibold rounded-lg">
+                    <div id="symbol-output" class="absolute right-3 top-3 px-3 py-1 bg-purple-900/50 text-purple-300 font-semibold rounded-lg">
                         MYTB
                     </div>
                 </div>
@@ -81,12 +103,12 @@
                     <span id="price-impact" class="text-red-400">--</span>
                 </div>
                 <div class="flex justify-between">
-                    <span>Trade Fee (0.3%):</span>
+                    <span id="fee-label">Trade Fee (0.3% MYTA):</span>
                     <span id="trade-fee" class="text-gray-300">--</span>
                 </div>
             </div>
 
-            <!-- Action Button -->
+            <!-- Action Button for Swap -->
             <button id="swap-button" onclick="handleSwap()"
                     class="w-full mt-6 py-3 px-4 rounded-xl text-lg font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200 disabled:bg-gray-600"
                     disabled>
@@ -94,6 +116,42 @@
             </button>
         </div>
         
+        <!-- LIQUIDITY CARD -->
+        <div id="liquidity-card" class="bg-[#0d1117] p-5 rounded-lg border border-purple-700/50 hidden">
+            <h2 class="text-xl font-bold text-white mb-4">Add Initial Liquidity</h2>
+            <div class="space-y-4">
+                <!-- Input Token A -->
+                <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Amount MYTA</label>
+                    <input type="number" id="input-amount-a" oninput="updateLiquidityRatio()" placeholder="0.0"
+                           class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
+                    <div class="absolute right-3 top-3 px-3 py-1 bg-indigo-900/50 text-indigo-300 font-semibold rounded-lg">
+                        MYTA
+                    </div>
+                </div>
+
+                <!-- Input Token B -->
+                <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Amount MYTB</label>
+                    <input type="number" id="input-amount-b" placeholder="0.0"
+                           class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
+                    <div class="absolute right-3 top-3 px-3 py-1 bg-purple-900/50 text-purple-300 font-semibold rounded-lg">
+                        MYTB
+                    </div>
+                </div>
+            </div>
+
+            <p id="liquidity-note" class="text-xs text-gray-500 mt-4">
+                Note: For initial liquidity, both amounts must be greater than zero. Subsequent deposits must match the current pool ratio.
+            </p>
+
+            <!-- Action Button for Liquidity -->
+            <button id="add-liquidity-button" onclick="handleAddLiquidity()"
+                    class="w-full mt-6 py-3 px-4 rounded-xl text-lg font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors duration-200 disabled:bg-gray-600">
+                Add Liquidity
+            </button>
+        </div>
+
         <!-- Error/Message Box -->
         <div id="message-box" class="mt-4 p-3 hidden rounded-lg text-sm" role="alert"></div>
 
@@ -103,7 +161,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        // Firestore not strictly needed for DEX, but included for completeness in this environment
         import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
         // Global variables provided by the Canvas environment
@@ -161,12 +218,32 @@
 
     <!-- DEX Logic -->
     <script>
-        // --- 🛑 UPDATE THESE ADDRESSES WITH YOUR DEPLOYED CONTRACTS 🛑 ---
-        // Placeholder values. You must replace these with your actual addresses.
-        const DEX_POOL_ADDRESS = "0x474f8A2A55Eab46902cf0F0395b6255E163914E3"; 
-        const MY_TOKEN_A_ADDRESS = "0x81F134C60a530944cDB5B4aC0ADcE3fC8626A399";   
-        const MY_TOKEN_B_ADDRESS = "0x9362FC10Cd2667eEa913b01e77F8D5C8";   
-        // ------------------------------------------------------------------
+        // --- ✅ DEPLOYED CONTRACT ADDRESSES (CONFIRMED) ✅ ---
+        // These addresses MUST match the successful deployment in your Forge scripts.
+        const DEX_POOL_ADDRESS = "0x106A4bfb4b7709bc809dC01C4972e7DeC91b0f80"; 
+        const MY_TOKEN_A_ADDRESS = "0xa654C7Ef6Ba495A77550D629f2b05bEF3e15c588";   
+        const MY_TOKEN_B_ADDRESS = "0xECE33627200cA2430058EFFe099112852C65A5D6";   
+        // ----------------------------------------------------
+
+        // Token Configuration Map
+        const TOKEN_INFO = {
+            MYTA: { 
+                address: MY_TOKEN_A_ADDRESS, 
+                symbol: "MYTA", 
+                reserveId: "reserveA", 
+                balanceId: "balance-a", 
+                contractKey: "mytaContract",
+                inputColor: 'indigo'
+            },
+            MYTB: { 
+                address: MY_TOKEN_B_ADDRESS, 
+                symbol: "MYTB", 
+                reserveId: "reserveB", 
+                balanceId: "balance-b", 
+                contractKey: "mytbContract",
+                inputColor: 'purple'
+            }
+        };
 
         // Standard ERC-20 ABI (only includes approve, transferFrom, and balanceOf)
         const ERC20_ABI = [
@@ -176,13 +253,14 @@
             "function symbol() view returns (string)"
         ];
 
-        // Custom DEX Pool ABI (only includes reserveA, reserveB, and swap)
+        // Custom DEX Pool ABI (includes swap and addLiquidity)
         const DEX_ABI = [
-            "function reserveA() view returns (uint256)",
-            "function reserveB() view returns (uint256)",
-            "function tokenA() view returns (address)",
-            "function tokenB() view returns (address)",
+            "function reserve0() view returns (uint256)", // Updated to match Solidity name
+            "function reserve1() view returns (uint256)", // Updated to match Solidity name
+            "function TOKEN_0() view returns (address)",
+            "function TOKEN_1() view returns (address)",
             "function swap(address _tokenIn, uint256 _amountIn)",
+            "function addLiquidity(uint256 amountA, uint256 amountB)",
         ];
 
         // Global state
@@ -192,18 +270,46 @@
             dexContract: null,
             mytaContract: null,
             mytbContract: null,
-            reserveA: 0n, // Use BigInts for reserve math
+            reserveA: 0n,
             reserveB: 0n,
             isPoolReady: false,
+            currentTab: 'swap',
+            tokenInKey: 'MYTA', // Default input token is MYTA
+            tokenOutKey: 'MYTB', // Default output token is MYTB
+            token0Address: '', // Store the sorted token 0 address
+            token1Address: '', // Store the sorted token 1 address
         };
 
         // UI elements
         const swapButton = document.getElementById('swap-button');
+        const liquidityButton = document.getElementById('add-liquidity-button');
         const inputAmountEl = document.getElementById('input-amount');
         const outputAmountEl = document.getElementById('output-amount');
+        const inputAmountAEl = document.getElementById('input-amount-a');
+        const inputAmountBEl = document.getElementById('input-amount-b');
         const rpcDot = document.getElementById('rpc-dot');
         const accountInfoEl = document.getElementById('account-info');
         const msgBox = document.getElementById('message-box');
+
+        /**
+         * Switches the active tab (Swap or Liquidity).
+         * @param {string} tabName 'swap' or 'liquidity'.
+         */
+        function showTab(tabName) {
+            state.currentTab = tabName;
+            document.getElementById('swap-card').classList.toggle('hidden', tabName !== 'swap');
+            document.getElementById('liquidity-card').classList.toggle('hidden', tabName !== 'liquidity');
+
+            document.getElementById('tab-swap').classList.toggle('border-indigo-500', tabName === 'swap');
+            document.getElementById('tab-swap').classList.toggle('text-white', tabName === 'swap');
+            document.getElementById('tab-swap').classList.toggle('border-transparent', tabName !== 'swap');
+            document.getElementById('tab-swap').classList.toggle('text-gray-500', tabName !== 'swap');
+
+            document.getElementById('tab-liquidity').classList.toggle('border-purple-500', tabName === 'liquidity');
+            document.getElementById('tab-liquidity').classList.toggle('text-white', tabName === 'liquidity');
+            document.getElementById('tab-liquidity').classList.toggle('border-transparent', tabName !== 'liquidity');
+            document.getElementById('tab-liquidity').classList.toggle('text-gray-500', tabName !== 'liquidity');
+        }
 
         /**
          * Utility to display messages/errors in the dedicated box.
@@ -225,106 +331,198 @@
 
         /**
          * Converts BigInt or string balance (in smallest unit) to a readable fixed-point number (e.g., 18 decimals).
-         * @param {bigint|string} amount The amount in smallest units (wei).
-         * @param {number} decimals The number of decimals to use (default 18).
-         * @returns {string} The formatted number string.
          */
         function formatUnits(amount, decimals = 18) {
             try {
                 return ethers.formatUnits(amount, decimals);
             } catch (e) {
-                console.error("Error formatting units:", e);
                 return "Error";
             }
         }
 
         /**
          * Converts a human-readable number string (e.g., "1.5") to BigInt (in smallest unit).
-         * @param {string} amount The human-readable amount string.
-         * @param {number} decimals The number of decimals to use (default 18).
-         * @returns {bigint} The amount in smallest units (wei).
          */
         function parseUnits(amount, decimals = 18) {
             try {
                 return ethers.parseUnits(amount, decimals);
             } catch (e) {
-                console.error("Error parsing units:", e);
                 return 0n;
             }
         }
 
         /**
+         * Dynamically updates the UI labels, colors, and symbols based on the current swap direction.
+         */
+        function updateSwapUI() {
+            const tokenIn = TOKEN_INFO[state.tokenInKey];
+            const tokenOut = TOKEN_INFO[state.tokenOutKey];
+
+            // Update Input Fields
+            document.getElementById('label-input').textContent = `You Pay (${tokenIn.symbol})`;
+            document.getElementById('symbol-input').textContent = tokenIn.symbol;
+            document.getElementById('symbol-input').className = `absolute right-3 top-3 px-3 py-1 bg-${tokenIn.inputColor}-900/50 text-${tokenIn.inputColor}-300 font-semibold rounded-lg`;
+
+            // Update Output Fields
+            document.getElementById('label-output').textContent = `You Receive (${tokenOut.symbol})`;
+            document.getElementById('symbol-output').textContent = tokenOut.symbol;
+            document.getElementById('symbol-output').className = `absolute right-3 top-3 px-3 py-1 bg-${tokenOut.inputColor}-900/50 text-${tokenOut.inputColor}-300 font-semibold rounded-lg`;
+            
+            // Update Fee Label
+            document.getElementById('fee-label').textContent = `Trade Fee (0.3% ${tokenIn.symbol}):`;
+
+            // Reset calculation fields
+            inputAmountEl.value = '';
+            outputAmountEl.value = '0.0';
+            document.getElementById('price-impact').textContent = '--';
+            document.getElementById('trade-fee').textContent = '--';
+
+            // Re-evaluate button state
+            updateOutput();
+        }
+
+        /**
+         * Flips the tokenIn and tokenOut keys and updates the UI.
+         */
+        function flipTokens() {
+            [state.tokenInKey, state.tokenOutKey] = [state.tokenOutKey, state.tokenInKey];
+            updateSwapUI();
+        }
+
+        /**
          * Sets up Ethers provider, signer, and contract instances.
+         * FIX: Added explicit eth_requestAccounts call to force connection prompt and prevent hanging.
          */
         async function setupEthers() {
             try {
-                // 1. Get Provider and Signer (MetaMask/Injected)
+                // 1. Get Provider
                 if (!window.ethereum) {
                     throw new Error("MetaMask or similar provider not detected.");
                 }
                 
                 state.provider = new ethers.BrowserProvider(window.ethereum);
+
+                // 2. Request accounts to force connection prompt and unblock signer access
+                await state.provider.send('eth_requestAccounts', []);
+                
                 state.signer = await state.provider.getSigner();
 
-                // 2. Display Account Info
+                // 3. Display Account Info
                 const address = await state.signer.getAddress();
                 accountInfoEl.textContent = `Account: ${address.substring(0, 6)}...`;
                 rpcDot.classList.replace('bg-red-500', 'bg-green-500');
 
-                // 3. Setup Contracts
+                // 4. Setup Contracts
                 state.dexContract = new ethers.Contract(DEX_POOL_ADDRESS, DEX_ABI, state.signer);
                 state.mytaContract = new ethers.Contract(MY_TOKEN_A_ADDRESS, ERC20_ABI, state.signer);
                 state.mytbContract = new ethers.Contract(MY_TOKEN_B_ADDRESS, ERC20_ABI, state.signer);
                 
+                // 5. Fetch Token Sorting (Crucial for reserve mapping)
+                state.token0Address = await state.dexContract.TOKEN_0();
+                state.token1Address = await state.dexContract.TOKEN_1();
+
+                // 6. Fetch Reserves
                 await getReserves();
                 
             } catch (error) {
                 console.error("Ethers Setup Error:", error);
-                displayMessage(`Connection Error: ${error.message}. Please check your wallet and network.`, 'error');
+                
+                let errorMessage = "Connection failed. ";
+                if (!window.ethereum) {
+                    errorMessage += "Wallet provider (e.g., MetaMask) not found.";
+                } else if (error.code === 4001) {
+                    errorMessage += "Wallet connection rejected by the user.";
+                } else {
+                    errorMessage += `Ensure you are on the correct network (Arc Testnet). Error: ${error.message.substring(0, 50)}...`;
+                }
+
+                displayMessage(errorMessage, 'error');
+                
+                // Update UI to allow manual connection attempt
+                accountInfoEl.textContent = "Wallet Disconnected";
                 swapButton.textContent = "Connect Wallet";
-                swapButton.onclick = () => window.ethereum.request({ method: 'eth_requestAccounts' });
+                if (window.ethereum) {
+                    swapButton.onclick = () => window.ethereum.request({ method: 'eth_requestAccounts' });
+                } else {
+                    swapButton.onclick = () => displayMessage("Please install a wallet provider (e.g., MetaMask).", 'error');
+                }
                 swapButton.disabled = false;
+                liquidityButton.disabled = true;
             }
         }
         
         /**
-         * Fetches and displays the current reserves from the DEX pool.
-         * The error simulation has been REMOVED here to attempt a live connection.
+         * Fetches and displays the current reserves and user balances from the DEX pool.
          */
         async function getReserves() {
-            if (!state.dexContract) return;
+            if (!state.dexContract || !state.signer || !state.token0Address || !state.token1Address) return;
 
             try {
-                swapButton.textContent = "Fetching Reserves...";
+                swapButton.textContent = "Fetching Data...";
                 swapButton.disabled = true;
+                liquidityButton.disabled = true;
                 
-                // Fetch reserves
-                const reserveA = await state.dexContract.reserveA();
-                const reserveB = await state.dexContract.reserveB();
-                
-                state.reserveA = reserveA;
-                state.reserveB = reserveB;
-                state.isPoolReady = true;
+                const userAddress = await state.signer.getAddress();
 
-                // Update UI
-                document.getElementById('reserve-a').textContent = `MYTA: ${formatUnits(reserveA, 18)}`;
-                document.getElementById('reserve-b').textContent = `MYTB: ${formatUnits(reserveB, 18)}`;
+                // Fetch raw reserves
+                const reserve0 = await state.dexContract.reserve0();
+                const reserve1 = await state.dexContract.reserve1();
                 
-                // Clear any previous error message
+                // Map raw reserves (0 and 1) to MYTA and MYTB based on sorting in the contract
+                const isMYTA_Token0 = state.token0Address.toLowerCase() === MY_TOKEN_A_ADDRESS.toLowerCase();
+                
+                state.reserveA = isMYTA_Token0 ? reserve0 : reserve1;
+                state.reserveB = isMYTA_Token0 ? reserve1 : reserve0;
+                state.isPoolReady = true;
+                
+                // Fetch user balances
+                const balanceA = await state.mytaContract.balanceOf(userAddress);
+                const balanceB = await state.mytbContract.balanceOf(userAddress);
+
+                // Update UI (Reserves)
+                document.getElementById(TOKEN_INFO.MYTA.reserveId).textContent = `MYTA Reserve: ${formatUnits(state.reserveA, 18)}`;
+                document.getElementById(TOKEN_INFO.MYTB.reserveId).textContent = `MYTB Reserve: ${formatUnits(state.reserveB, 18)}`;
+                
+                // Update UI (Balances)
+                document.getElementById(TOKEN_INFO.MYTA.balanceId).textContent = `Your MYTA: ${formatUnits(balanceA, 18)}`;
+                document.getElementById(TOKEN_INFO.MYTB.balanceId).textContent = `Your MYTB: ${formatUnits(balanceB, 18)}`;
+                
                 msgBox.classList.add('hidden');
 
-                swapButton.textContent = "Enter Amount";
-                swapButton.disabled = false;
+                // Check for zero reserves
+                if (state.reserveA === 0n && state.reserveB === 0n) {
+                    displayMessage("Pool has 0 reserves. Use the LIQUIDITY tab to add the first deposit.", 'info');
+                    swapButton.textContent = "Add Liquidity First";
+                    swapButton.disabled = true;
+                    liquidityButton.disabled = false;
+                    document.getElementById('liquidity-note').textContent = "Note: This is the initial deposit. Both amounts must be greater than zero.";
+                } else {
+                    swapButton.textContent = "Enter Amount";
+                    swapButton.disabled = false;
+                    liquidityButton.disabled = false;
+                    document.getElementById('liquidity-note').textContent = "Note: Subsequent deposits must maintain the current pool ratio.";
+                }
+
+                // Recalculate based on current tab and swap direction
+                if (state.currentTab === 'swap') {
+                    updateOutput();
+                } else {
+                    updateLiquidityRatio();
+                }
 
             } catch (error) {
-                console.error("Error fetching reserves:", error);
-                displayMessage("Could not fetch pool reserves. Check contract addresses and network connection.", 'error');
+                console.error("Error fetching data:", error);
+                displayMessage("Could not fetch pool reserves or balances. Check contract addresses and network connection.", 'error');
                 
                 // Update UI elements to reflect failure state
-                document.getElementById('reserve-a').textContent = `MYTA: --`;
-                document.getElementById('reserve-b').textContent = `MYTB: --`;
+                document.getElementById('reserve-a').textContent = `MYTA Reserve: --`;
+                document.getElementById('reserve-b').textContent = `MYTB Reserve: --`;
+                document.getElementById('balance-a').textContent = `Your MYTA: --`;
+                document.getElementById('balance-b').textContent = `Your MYTB: --`;
+
                 swapButton.textContent = "Error Loading";
                 swapButton.disabled = true;
+                liquidityButton.disabled = true;
             }
         }
         
@@ -338,23 +536,16 @@
             const feeNumerator = 997n; // 0.3% fee
             const feeDenominator = 1000n;
             
-            // Apply fee to input amount
             const amountInWithFee = amountIn * feeNumerator;
-            
-            // Denominator: (ReserveIn * 1000) + (AmountIn * 997)
             const denominator = (reserveIn * feeDenominator) + amountInWithFee;
-            
-            // Numerator: AmountInWithFee * ReserveOut
             const numerator = amountInWithFee * reserveOut;
-            
-            // Final output amount
             const amountOut = numerator / denominator;
             
             return amountOut;
         }
 
         /**
-         * Handles real-time input and updates the estimated output.
+         * Handles real-time input for swap and updates the estimated output based on direction.
          */
         function updateOutput() {
             if (!state.isPoolReady) return;
@@ -367,44 +558,50 @@
                 document.getElementById('price-impact').textContent = '--';
                 document.getElementById('trade-fee').textContent = '--';
                 swapButton.textContent = "Enter Amount";
-                swapButton.disabled = true;
+                swapButton.disabled = state.reserveA === 0n; 
                 return;
             }
 
             try {
-                // Assuming 18 decimals for both tokens for simplicity
                 const amountInWei = parseUnits(inputString, 18);
-
-                // Calculate output (Token A in -> Token B out)
-                const amountOutWei = calculateSwapOutput(
-                    amountInWei, 
-                    state.reserveA, 
-                    state.reserveB
-                );
-
+                
+                // Determine reserves based on current swap direction
+                const isAToB = state.tokenInKey === 'MYTA';
+                const reserveIn = isAToB ? state.reserveA : state.reserveB;
+                const reserveOut = isAToB ? state.reserveB : state.reserveA;
+                
+                const amountOutWei = calculateSwapOutput(amountInWei, reserveIn, reserveOut);
                 const amountOutDisplay = formatUnits(amountOutWei, 18);
                 outputAmountEl.value = parseFloat(amountOutDisplay).toFixed(6);
 
-                // Calculate Price Impact (Approximate)
-                const priceBefore = Number(formatUnits(state.reserveA)) / Number(formatUnits(state.reserveB));
-                const reserveA_after = state.reserveA + amountInWei;
-                const reserveB_after = state.reserveB - amountOutWei;
-                const priceAfter = Number(formatUnits(reserveA_after)) / Number(formatUnits(reserveB_after));
+                // Update reserves for price impact calculation
+                const reserveIn_after = reserveIn + amountInWei;
+                const reserveOut_after = reserveOut - amountOutWei;
                 
-                const impact = ((priceAfter - priceBefore) / priceBefore) * 100;
+                let priceBefore, priceAfter;
 
+                // Price is always Token B / Token A (Reserve B / Reserve A)
+                const R_A = isAToB ? reserveIn : reserveOut;
+                const R_B = isAToB ? reserveOut : reserveIn;
+                
+                priceBefore = Number(formatUnits(R_B)) / Number(formatUnits(R_A));
+                priceAfter = Number(formatUnits(reserveOut_after)) / Number(formatUnits(reserveIn_after));
+
+                // Price impact calculation
+                const impact = ((priceAfter - priceBefore) / priceBefore) * 100;
+                
                 // Calculate Fee (0.3% of input)
-                const tradeFeeWei = amountInWei / 1000n * 3n; // 0.3%
+                const tradeFeeWei = amountInWei * 3n / 1000n; 
                 const tradeFeeDisplay = formatUnits(tradeFeeWei, 18);
 
                 document.getElementById('price-impact').textContent = `${impact.toFixed(4)}%`;
-                document.getElementById('trade-fee').textContent = `${parseFloat(tradeFeeDisplay).toFixed(6)} MYTA`;
+                document.getElementById('trade-fee').textContent = `${parseFloat(tradeFeeDisplay).toFixed(6)} ${state.tokenInKey}`;
 
-                swapButton.textContent = "Swap Tokens";
+                swapButton.textContent = `Swap ${state.tokenInKey} for ${state.tokenOutKey}`;
                 swapButton.disabled = false;
 
             } catch (error) {
-                console.error("Calculation Error:", error);
+                console.error("Swap Calculation Error:", error);
                 outputAmountEl.value = 'Error';
                 swapButton.textContent = "Error";
                 swapButton.disabled = true;
@@ -412,7 +609,42 @@
         }
 
         /**
-         * Executes the approve and swap transactions.
+         * Handles real-time input for liquidity and updates the proportional B amount.
+         */
+        function updateLiquidityRatio() {
+            const inputStringA = inputAmountAEl.value;
+            const inputStringB = inputAmountBEl.value;
+            const inputValA = parseFloat(inputStringA);
+            
+            // If zero reserves, B is not proportional, and user sets both.
+            if (state.reserveA === 0n && state.reserveB === 0n) {
+                // If reserve B is being updated too, ensure it's not relying on A
+                if (inputAmountBEl.value === '0.0' || inputAmountBEl.value === '') {
+                     inputAmountBEl.value = inputStringA; // Simple 1:1 suggestion for initial liquidity
+                }
+                return; 
+            }
+
+            if (!inputStringA || isNaN(inputValA) || inputValA <= 0) {
+                inputAmountBEl.value = '0.0';
+                return;
+            }
+            
+            try {
+                // Calculate required B amount based on current ratio: B_out = A_in * (Reserve_B / Reserve_A)
+                const ratio = Number(state.reserveB) / Number(state.reserveA);
+                const amountB_num = inputValA * ratio;
+
+                inputAmountBEl.value = amountB_num.toFixed(6);
+                
+            } catch (error) {
+                console.error("Liquidity Calculation Error:", error);
+                inputAmountBEl.value = 'Error';
+            }
+        }
+
+        /**
+         * Executes the approve and swap transactions, dynamically choosing the token to approve.
          */
         async function handleSwap() {
             if (!state.isPoolReady || !state.signer || swapButton.disabled) return;
@@ -423,22 +655,26 @@
                 return;
             }
             const amountInWei = parseUnits(inputString, 18);
-
-            swapButton.textContent = "Waiting for Approval...";
+            const tokenIn = TOKEN_INFO[state.tokenInKey];
+            
+            swapButton.textContent = `Waiting for ${tokenIn.symbol} Approval...`;
             swapButton.disabled = true;
 
             try {
-                // 1. Check/Execute Approve
-                displayMessage("Awaiting approval transaction for MYTA...", 'info');
-                // For simplicity, we'll approve a massive amount. In production, calculate min amount.
+                // 1. Get the correct token contract (either MYTA or MYTB)
+                const tokenContract = state[tokenIn.contractKey];
+
+                // 2. Check/Execute Approve
+                displayMessage(`Awaiting approval transaction for ${tokenIn.symbol}...`, 'info');
+                // Approving MAX_INT is a common UX practice to only approve once
                 const MAX_INT = 2n**256n - 1n; 
-                const approveTx = await state.mytaContract.approve(DEX_POOL_ADDRESS, MAX_INT);
+                const approveTx = await tokenContract.approve(DEX_POOL_ADDRESS, MAX_INT);
                 await approveTx.wait();
 
-                displayMessage(`Approval confirmed (Tx: ${approveTx.hash.substring(0, 10)}...). Awaiting Swap...`, 'info');
+                displayMessage(`${tokenIn.symbol} Approval confirmed. Awaiting Swap...`, 'info');
 
-                // 2. Execute Swap
-                const swapTx = await state.dexContract.swap(MY_TOKEN_A_ADDRESS, amountInWei);
+                // 3. Execute Swap
+                const swapTx = await state.dexContract.swap(tokenIn.address, amountInWei);
                 await swapTx.wait();
 
                 displayMessage(`Swap successful! Tx: ${swapTx.hash.substring(0, 10)}...`, 'success');
@@ -449,20 +685,86 @@
                 displayMessage(`Transaction Error: ${message}`, 'error');
 
             } finally {
-                swapButton.textContent = "Swap Tokens";
+                swapButton.textContent = `Swap ${state.tokenInKey} for ${state.tokenOutKey}`;
                 swapButton.disabled = false;
-                // Refresh reserves
                 await getReserves();
             }
         }
 
+        /**
+         * Executes the approve and addLiquidity transactions.
+         */
+        async function handleAddLiquidity() {
+            if (!state.isPoolReady || !state.signer || liquidityButton.disabled) return;
+
+            const inputStringA = inputAmountAEl.value;
+            const inputStringB = inputAmountBEl.value;
+            const amountA = parseFloat(inputStringA);
+            const amountB = parseFloat(inputStringB);
+
+            if (amountA <= 0 || amountB <= 0 || isNaN(amountA) || isNaN(amountB)) {
+                displayMessage("Please enter valid, non-zero amounts for both tokens.", 'error');
+                return;
+            }
+            
+            const amountAWei = parseUnits(inputStringA, 18);
+            const amountBWei = parseUnits(inputStringB, 18);
+
+            liquidityButton.textContent = "Waiting for Approval...";
+            liquidityButton.disabled = true;
+
+            try {
+                const MAX_INT = 2n**256n - 1n;
+
+                // 1. Approve Token A
+                displayMessage("Awaiting approval transaction for MYTA...", 'info');
+                let approveTxA = await state.mytaContract.approve(DEX_POOL_ADDRESS, MAX_INT);
+                await approveTxA.wait();
+                
+                // 2. Approve Token B
+                displayMessage("MYTA Approved. Awaiting approval transaction for MYTB...", 'info');
+                let approveTxB = await state.mytbContract.approve(DEX_POOL_ADDRESS, MAX_INT);
+                await approveTxB.wait();
+
+                displayMessage(`Approvals confirmed. Awaiting Add Liquidity transaction...`, 'info');
+
+                // 3. Add Liquidity
+                // NOTE: The contract expects amounts corresponding to TOKEN_0 and TOKEN_1, 
+                // but since the addLiquidity function is simplistic and checks the ratio 
+                // against current balances, we pass A then B here as the contract handles the 
+                // transferFrom calls internally in a sorted manner.
+                const liquidityTx = await state.dexContract.addLiquidity(amountAWei, amountBWei);
+                await liquidityTx.wait();
+
+                displayMessage(`Liquidity added successfully! Tx: ${liquidityTx.hash.substring(0, 10)}...`, 'success');
+                
+            } catch (error) {
+                console.error("Liquidity Transaction Failed:", error);
+                const message = error.reason || error.message || "Unknown error during liquidity deposit. Check ratio or balances.";
+                displayMessage(`Transaction Error: ${message}`, 'error');
+
+            } finally {
+                liquidityButton.textContent = "Add Liquidity";
+                liquidityButton.disabled = false;
+                await getReserves();
+            }
+        }
+
+        // Expose functions globally for the HTML button clicks
+        window.flipTokens = flipTokens;
+        window.showTab = showTab;
+        window.handleSwap = handleSwap;
+        window.handleAddLiquidity = handleAddLiquidity;
+        window.updateOutput = updateOutput;
+        window.updateLiquidityRatio = updateLiquidityRatio;
+
+
         // Initialize Ethers on window load
         window.onload = function() {
-            // setupEthers is called immediately (or after Firebase auth completes)
-            // No need to call it explicitly here, as it's triggered by the Firebase module or fallback.
-            
-            // Set up interval to refresh reserves every 30 seconds
-            setInterval(getReserves, 30000);
+            showTab('swap'); // Set default tab view
+            // setupEthers is called by Firebase auth listener or fallback
+            // Set up a refresh interval to keep reserves and balances updated
+            setInterval(getReserves, 30000); 
         };
     </script>
 
