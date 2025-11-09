@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArcDEX Frontend</title>
+    <title>ArcDEX Frontend - Live Connection</title>
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Ethers.js for blockchain interaction -->
@@ -162,9 +162,10 @@
     <!-- DEX Logic -->
     <script>
         // --- 🛑 UPDATE THESE ADDRESSES WITH YOUR DEPLOYED CONTRACTS 🛑 ---
-        const DEX_POOL_ADDRESS = "0x474f8A2A55Eab46902cf0F0395b6255E163914E3"; // Replace with your deployed ArcDEXPool address
-        const MYTA_ADDRESS = "0x81F134C60a530944cDB5B4aC0ADcE3fC8626A399";   // Replace with your deployed MyTokenA address
-        const MYTB_ADDRESS = "0x9362FC10Cd2667eEa913b01e77F8D5C8";   // Replace with your deployed MyTokenB address
+        // Placeholder values. You must replace these with your actual addresses.
+        const DEX_POOL_ADDRESS = "0x474f8A2A55Eab46902cf0F0395b6255E163914E3"; 
+        const MY_TOKEN_A_ADDRESS = "0x81F134C60a530944cDB5B4aC0ADcE3fC8626A399";   
+        const MY_TOKEN_B_ADDRESS = "0x9362FC10Cd2667eEa913b01e77F8D5C8";   
         // ------------------------------------------------------------------
 
         // Standard ERC-20 ABI (only includes approve, transferFrom, and balanceOf)
@@ -223,6 +224,36 @@
         }
 
         /**
+         * Converts BigInt or string balance (in smallest unit) to a readable fixed-point number (e.g., 18 decimals).
+         * @param {bigint|string} amount The amount in smallest units (wei).
+         * @param {number} decimals The number of decimals to use (default 18).
+         * @returns {string} The formatted number string.
+         */
+        function formatUnits(amount, decimals = 18) {
+            try {
+                return ethers.formatUnits(amount, decimals);
+            } catch (e) {
+                console.error("Error formatting units:", e);
+                return "Error";
+            }
+        }
+
+        /**
+         * Converts a human-readable number string (e.g., "1.5") to BigInt (in smallest unit).
+         * @param {string} amount The human-readable amount string.
+         * @param {number} decimals The number of decimals to use (default 18).
+         * @returns {bigint} The amount in smallest units (wei).
+         */
+        function parseUnits(amount, decimals = 18) {
+            try {
+                return ethers.parseUnits(amount, decimals);
+            } catch (e) {
+                console.error("Error parsing units:", e);
+                return 0n;
+            }
+        }
+
+        /**
          * Sets up Ethers provider, signer, and contract instances.
          */
         async function setupEthers() {
@@ -242,8 +273,8 @@
 
                 // 3. Setup Contracts
                 state.dexContract = new ethers.Contract(DEX_POOL_ADDRESS, DEX_ABI, state.signer);
-                state.mytaContract = new ethers.Contract(MYTA_ADDRESS, ERC20_ABI, state.signer);
-                state.mytbContract = new ethers.Contract(MYTB_ADDRESS, ERC20_ABI, state.signer);
+                state.mytaContract = new ethers.Contract(MY_TOKEN_A_ADDRESS, ERC20_ABI, state.signer);
+                state.mytbContract = new ethers.Contract(MY_TOKEN_B_ADDRESS, ERC20_ABI, state.signer);
                 
                 await getReserves();
                 
@@ -258,37 +289,40 @@
         
         /**
          * Fetches and displays the current reserves from the DEX pool.
+         * The error simulation has been REMOVED here to attempt a live connection.
          */
         async function getReserves() {
+            if (!state.dexContract) return;
+
             try {
-                swapButton.textContent = "Loading Reserves...";
+                swapButton.textContent = "Fetching Reserves...";
+                swapButton.disabled = true;
                 
                 // Fetch reserves
                 const reserveA = await state.dexContract.reserveA();
                 const reserveB = await state.dexContract.reserveB();
-
+                
                 state.reserveA = reserveA;
                 state.reserveB = reserveB;
                 state.isPoolReady = true;
 
-                const tokenA = await state.dexContract.tokenA();
-                const tokenB = await state.dexContract.tokenB();
+                // Update UI
+                document.getElementById('reserve-a').textContent = `MYTA: ${formatUnits(reserveA, 18)}`;
+                document.getElementById('reserve-b').textContent = `MYTB: ${formatUnits(reserveB, 18)}`;
                 
-                const tokenASymbol = MYTA_ADDRESS.toLowerCase() === tokenA.toLowerCase() ? "MYTA" : "MYTB";
-                const tokenBSymbol = MYTB_ADDRESS.toLowerCase() === tokenB.toLowerCase() ? "MYTB" : "MYTA";
+                // Clear any previous error message
+                msgBox.classList.add('hidden');
 
-                // Format and display reserves
-                const displayA = ethers.formatUnits(reserveA, 18);
-                const displayB = ethers.formatUnits(reserveB, 18);
-
-                document.getElementById('reserve-a').textContent = `${tokenASymbol}: ${parseFloat(displayA).toFixed(4)}`;
-                document.getElementById('reserve-b').textContent = `${tokenBSymbol}: ${parseFloat(displayB).toFixed(4)}`;
-
-                swapButton.textContent = "Swap";
+                swapButton.textContent = "Enter Amount";
                 swapButton.disabled = false;
+
             } catch (error) {
                 console.error("Error fetching reserves:", error);
-                displayMessage("Could not fetch pool reserves. Check contract addresses.", 'error');
+                displayMessage("Could not fetch pool reserves. Check contract addresses and network connection.", 'error');
+                
+                // Update UI elements to reflect failure state
+                document.getElementById('reserve-a').textContent = `MYTA: --`;
+                document.getElementById('reserve-b').textContent = `MYTB: --`;
                 swapButton.textContent = "Error Loading";
                 swapButton.disabled = true;
             }
@@ -296,11 +330,11 @@
         
         /**
          * Calculates the output amount using the Constant Product Market Maker formula:
-         * (reserve_in + amount_in * (1 - fee)) * (reserve_out - amount_out) = reserve_in * reserve_out
-         * Output amount = (AmountIn * ReserveOut * (1 - Fee)) / (ReserveIn + AmountIn * (1 - Fee))
-         * Fee is 0.3% or 0.003, which is 997 / 1000
+         * amountOut = (amountIn * reserveOut * 997) / (reserveIn * 1000 + amountIn * 997)
          */
         function calculateSwapOutput(amountIn, reserveIn, reserveOut) {
+            if (reserveIn === 0n || reserveOut === 0n || amountIn === 0n) return 0n;
+
             const feeNumerator = 997n; // 0.3% fee
             const feeDenominator = 1000n;
             
@@ -323,46 +357,57 @@
          * Handles real-time input and updates the estimated output.
          */
         function updateOutput() {
-            const inputVal = inputAmountEl.value;
-            if (!state.isPoolReady || !inputVal || isNaN(inputVal)) {
+            if (!state.isPoolReady) return;
+
+            const inputString = inputAmountEl.value;
+            const inputVal = parseFloat(inputString);
+            
+            if (!inputString || isNaN(inputVal) || inputVal <= 0) {
                 outputAmountEl.value = '0.0';
                 document.getElementById('price-impact').textContent = '--';
                 document.getElementById('trade-fee').textContent = '--';
+                swapButton.textContent = "Enter Amount";
+                swapButton.disabled = true;
                 return;
             }
 
             try {
-                // Convert floating point input to BigInt (wei equivalent)
-                const amountInWei = ethers.parseUnits(inputVal, 18);
+                // Assuming 18 decimals for both tokens for simplicity
+                const amountInWei = parseUnits(inputString, 18);
+
+                // Calculate output (Token A in -> Token B out)
+                const amountOutWei = calculateSwapOutput(
+                    amountInWei, 
+                    state.reserveA, 
+                    state.reserveB
+                );
+
+                const amountOutDisplay = formatUnits(amountOutWei, 18);
+                outputAmountEl.value = parseFloat(amountOutDisplay).toFixed(6);
+
+                // Calculate Price Impact (Approximate)
+                const priceBefore = Number(formatUnits(state.reserveA)) / Number(formatUnits(state.reserveB));
+                const reserveA_after = state.reserveA + amountInWei;
+                const reserveB_after = state.reserveB - amountOutWei;
+                const priceAfter = Number(formatUnits(reserveA_after)) / Number(formatUnits(reserveB_after));
                 
-                // Calculate output
-                const amountOutWei = calculateSwapOutput(amountInWei, state.reserveA, state.reserveB);
-                
-                // Convert output back to readable format
-                const amountOut = parseFloat(ethers.formatUnits(amountOutWei, 18));
-                outputAmountEl.value = amountOut.toFixed(6);
+                const impact = ((priceAfter - priceBefore) / priceBefore) * 100;
 
                 // Calculate Fee (0.3% of input)
-                const feeWei = (amountInWei * 3n) / 1000n;
-                const fee = parseFloat(ethers.formatUnits(feeWei, 18));
-                document.getElementById('trade-fee').textContent = `${fee.toFixed(6)} MYTA`;
+                const tradeFeeWei = amountInWei / 1000n * 3n; // 0.3%
+                const tradeFeeDisplay = formatUnits(tradeFeeWei, 18);
 
-                // Calculate Price Impact (simplified estimate: amountIn / reserveA)
-                const poolTotal = state.reserveA + state.reserveB;
-                const impact = (amountInWei * 10000n) / poolTotal; // Multiplied by 10000 for better precision
+                document.getElementById('price-impact').textContent = `${impact.toFixed(4)}%`;
+                document.getElementById('trade-fee').textContent = `${parseFloat(tradeFeeDisplay).toFixed(6)} MYTA`;
 
-                // Display impact percentage
-                document.getElementById('price-impact').textContent = `${parseFloat(ethers.formatUnits(impact, 2)).toFixed(2)}%`;
-                
-                if (parseFloat(ethers.formatUnits(impact, 2)) > 5) {
-                     document.getElementById('price-impact').classList.replace('text-red-400', 'text-yellow-400');
-                } else {
-                     document.getElementById('price-impact').classList.replace('text-yellow-400', 'text-red-400');
-                }
+                swapButton.textContent = "Swap Tokens";
+                swapButton.disabled = false;
 
             } catch (error) {
                 console.error("Calculation Error:", error);
                 outputAmountEl.value = 'Error';
+                swapButton.textContent = "Error";
+                swapButton.disabled = true;
             }
         }
 
@@ -370,71 +415,51 @@
          * Executes the approve and swap transactions.
          */
         async function handleSwap() {
-            if (!state.isPoolReady || !state.signer) {
-                displayMessage("Wallet not connected or pool not ready.", 'error');
-                return;
-            }
-            
-            const inputVal = inputAmountEl.value;
-            if (!inputVal || parseFloat(inputVal) <= 0) {
-                displayMessage("Please enter a valid amount to swap.", 'error');
-                return;
-            }
+            if (!state.isPoolReady || !state.signer || swapButton.disabled) return;
 
-            const amountInWei = ethers.parseUnits(inputVal, 18);
-            
+            const inputString = inputAmountEl.value;
+            if (parseFloat(inputString) <= 0 || !inputString) {
+                displayMessage("Please enter a valid amount.", 'error');
+                return;
+            }
+            const amountInWei = parseUnits(inputString, 18);
+
+            swapButton.textContent = "Waiting for Approval...";
             swapButton.disabled = true;
-            swapButton.textContent = "Awaiting Approval...";
-            displayMessage("Processing transaction...", 'info');
 
             try {
-                // 1. Approve the DEX to spend Token A (MYTA)
-                const approveTx = await state.mytaContract.approve(DEX_POOL_ADDRESS, amountInWei);
+                // 1. Check/Execute Approve
+                displayMessage("Awaiting approval transaction for MYTA...", 'info');
+                // For simplicity, we'll approve a massive amount. In production, calculate min amount.
+                const MAX_INT = 2n**256n - 1n; 
+                const approveTx = await state.mytaContract.approve(DEX_POOL_ADDRESS, MAX_INT);
                 await approveTx.wait();
-                displayMessage(`Approval confirmed (Tx: ${approveTx.hash.substring(0, 6)}...). Awaiting Swap...`, 'info');
 
-                // 2. Execute the Swap
-                // We use MYTA_ADDRESS as _tokenIn
-                const swapTx = await state.dexContract.swap(MYTA_ADDRESS, amountInWei);
-                swapButton.textContent = "Swapping...";
+                displayMessage(`Approval confirmed (Tx: ${approveTx.hash.substring(0, 10)}...). Awaiting Swap...`, 'info');
+
+                // 2. Execute Swap
+                const swapTx = await state.dexContract.swap(MY_TOKEN_A_ADDRESS, amountInWei);
                 await swapTx.wait();
 
-                displayMessage(`Swap Successful! (Tx: ${swapTx.hash.substring(0, 6)}...).`, 'success');
-                
-                // 3. Refresh reserves and UI
-                await getReserves();
-                inputAmountEl.value = '';
-                updateOutput(); // Clears output fields
+                displayMessage(`Swap successful! Tx: ${swapTx.hash.substring(0, 10)}...`, 'success');
 
             } catch (error) {
-                console.error("Swap Error:", error);
-                let errorMessage = "Transaction failed. Check console for details.";
-                
-                // Attempt to parse a recognizable error message
-                if (error.message.includes("user rejected transaction")) {
-                    errorMessage = "Transaction rejected by user.";
-                } else if (error.message.includes("insufficient funds")) {
-                    errorMessage = "Insufficient funds in your wallet for the swap or gas fee.";
-                } else if (error.message.includes("Amounts not in pool ratio")) {
-                    errorMessage = "Amounts not in pool ratio. Check your liquidity function.";
-                }
-                
-                displayMessage(`Swap Failed: ${errorMessage}`, 'error');
+                console.error("Swap Transaction Failed:", error);
+                const message = error.reason || error.message || "Unknown error during swap.";
+                displayMessage(`Transaction Error: ${message}`, 'error');
 
             } finally {
+                swapButton.textContent = "Swap Tokens";
                 swapButton.disabled = false;
-                swapButton.textContent = "Swap";
+                // Refresh reserves
+                await getReserves();
             }
         }
 
-        // Initialize Ethers on window load (after Firebase setup is initiated)
+        // Initialize Ethers on window load
         window.onload = function() {
-            // Note: setupEthers is called after successful Firebase auth, but we call it here 
-            // as a fallback if Firebase is not used, ensuring the DEX starts.
-            if (!state.provider) {
-                // If it wasn't called by the Firebase listener, call it now
-                // setupEthers(); // Will be called if firebaseConfig is null or if user signs in
-            }
+            // setupEthers is called immediately (or after Firebase auth completes)
+            // No need to call it explicitly here, as it's triggered by the Firebase module or fallback.
             
             // Set up interval to refresh reserves every 30 seconds
             setInterval(getReserves, 30000);
