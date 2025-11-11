@@ -16,7 +16,6 @@
             background-color: #0d1117; /* Dark background */
         }
         /* Custom scrollbar for better aesthetics */
-        /* Note: This is custom CSS, Tailwind does not have this utility */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
         ::-webkit-scrollbar-track { background: #161b22; }
@@ -118,12 +117,12 @@
         
         <!-- LIQUIDITY CARD -->
         <div id="liquidity-card" class="bg-[#0d1117] p-5 rounded-lg border border-purple-700/50 hidden">
-            <h2 class="text-xl font-bold text-white mb-4">Add Initial Liquidity</h2>
+            <h2 class="text-xl font-bold text-white mb-4">Add Liquidity</h2>
             <div class="space-y-4">
                 <!-- Input Token A -->
                 <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
                     <label class="block text-sm font-medium text-gray-400 mb-1">Amount MYTA</label>
-                    <input type="number" id="input-amount-a" oninput="updateLiquidityRatio()" placeholder="0.0"
+                    <input type="number" id="input-amount-a" oninput="updateLiquidityRatio('A')" placeholder="0.0"
                            class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
                     <div class="absolute right-3 top-3 px-3 py-1 bg-indigo-900/50 text-indigo-300 font-semibold rounded-lg">
                         MYTA
@@ -133,7 +132,7 @@
                 <!-- Input Token B -->
                 <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
                     <label class="block text-sm font-medium text-gray-400 mb-1">Amount MYTB</label>
-                    <input type="number" id="input-amount-b" placeholder="0.0"
+                    <input type="number" id="input-amount-b" oninput="updateLiquidityRatio('B')" placeholder="0.0"
                            class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
                     <div class="absolute right-3 top-3 px-3 py-1 bg-purple-900/50 text-purple-300 font-semibold rounded-lg">
                         MYTB
@@ -147,7 +146,8 @@
 
             <!-- Action Button for Liquidity -->
             <button id="add-liquidity-button" onclick="handleAddLiquidity()"
-                    class="w-full mt-6 py-3 px-4 rounded-xl text-lg font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors duration-200 disabled:bg-gray-600">
+                    class="w-full mt-6 py-3 px-4 rounded-xl text-lg font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors duration-200 disabled:bg-gray-600"
+                    disabled>
                 Add Liquidity
             </button>
         </div>
@@ -218,11 +218,12 @@
 
     <!-- DEX Logic -->
     <script>
-        // --- ✅ DEPLOYED CONTRACT ADDRESSES (CONFIRMED) ✅ ---
-        // These addresses MUST match the successful deployment in your Forge scripts.
-        const DEX_POOL_ADDRESS = "0x106A4bfb4b7709bc809dC01C4972e7DeC91b0f80"; 
-        const MY_TOKEN_A_ADDRESS = "0xa654C7Ef6Ba495A77550D629f2b05bEF3e15c588";   
-        const MY_TOKEN_B_ADDRESS = "0xECE33627200cA2430058EFFe099112852C65A5D6";   
+        // --- 🛑 UPDATE THESE ADDRESSES AFTER YOU RE-DEPLOY 🛑 ---
+        // These are the OLD addresses that are NOT WORKING.
+        // You MUST replace these with the new addresses from your 'DeployArcDEX.s.sol' output.
+        const DEX_POOL_ADDRESS = "0x175d2B9b3481A44C30baBA9ABeed9B9e2A9954b6"; 
+        const MY_TOKEN_A_ADDRESS = "0x32268eA834d5e7afAc9e1492fdAA77b99C6DDe67";   
+        const MY_TOKEN_B_ADDRESS = "0x7B3F6713f752f48F37076081432810E0f1C89268";   
         // ----------------------------------------------------
 
         // Token Configuration Map
@@ -230,7 +231,7 @@
             MYTA: { 
                 address: MY_TOKEN_A_ADDRESS, 
                 symbol: "MYTA", 
-                reserveId: "reserveA", 
+                reserveKey: "reserve0", // Will be set dynamically
                 balanceId: "balance-a", 
                 contractKey: "mytaContract",
                 inputColor: 'indigo'
@@ -238,29 +239,32 @@
             MYTB: { 
                 address: MY_TOKEN_B_ADDRESS, 
                 symbol: "MYTB", 
-                reserveId: "reserveB", 
+                reserveKey: "reserve1", // Will be set dynamically
                 balanceId: "balance-b", 
                 contractKey: "mytbContract",
                 inputColor: 'purple'
             }
         };
 
-        // Standard ERC-20 ABI (only includes approve, transferFrom, and balanceOf)
+        // Standard ERC-20 ABI
         const ERC20_ABI = [
             "function approve(address spender, uint256 amount) returns (bool)",
+            "function allowance(address owner, address spender) view returns (uint256)",
             "function transferFrom(address sender, address recipient, uint256 amount) returns (bool)",
             "function balanceOf(address account) view returns (uint256)",
             "function symbol() view returns (string)"
         ];
 
-        // Custom DEX Pool ABI (includes swap and addLiquidity)
+        // --- CRITICAL FIX: Updated DEX ABI ---
+        // The addLiquidity function signature has changed
         const DEX_ABI = [
-            "function reserve0() view returns (uint256)", // Updated to match Solidity name
-            "function reserve1() view returns (uint256)", // Updated to match Solidity name
+            "function reserve0() view returns (uint256)",
+            "function reserve1() view returns (uint256)",
             "function TOKEN_0() view returns (address)",
             "function TOKEN_1() view returns (address)",
             "function swap(address _tokenIn, uint256 _amountIn)",
-            "function addLiquidity(uint256 amountA, uint256 amountB)",
+            // New signature for addLiquidity
+            "function addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired) returns (uint256 amount0, uint256 amount1)"
         ];
 
         // Global state
@@ -270,8 +274,8 @@
             dexContract: null,
             mytaContract: null,
             mytbContract: null,
-            reserveA: 0n,
-            reserveB: 0n,
+            reserve0: 0n, // Use BigInts for reserve math
+            reserve1: 0n,
             isPoolReady: false,
             currentTab: 'swap',
             tokenInKey: 'MYTA', // Default input token is MYTA
@@ -291,9 +295,16 @@
         const accountInfoEl = document.getElementById('account-info');
         const msgBox = document.getElementById('message-box');
 
+        // Make functions globally accessible for onclick handlers
+        window.showTab = showTab;
+        window.flipTokens = flipTokens;
+        window.updateOutput = updateOutput;
+        window.handleSwap = handleSwap;
+        window.handleAddLiquidity = handleAddLiquidity;
+        window.updateLiquidityRatio = updateLiquidityRatio;
+
         /**
          * Switches the active tab (Swap or Liquidity).
-         * @param {string} tabName 'swap' or 'liquidity'.
          */
         function showTab(tabName) {
             state.currentTab = tabName;
@@ -313,12 +324,10 @@
 
         /**
          * Utility to display messages/errors in the dedicated box.
-         * @param {string} message The message content.
-         * @param {string} type 'success', 'error', or 'info'.
          */
         function displayMessage(message, type = 'info') {
             msgBox.textContent = message;
-            msgBox.classList.remove('hidden', 'bg-red-900', 'bg-green-900', 'bg-blue-900', 'text-red-300', 'text-green-300', 'text-blue-300');
+            msgBox.classList.remove('hidden', 'bg-red-900', 'bg-green-900', 'bg-blue-9CO0', 'text-red-300', 'text-green-300', 'text-blue-300');
             
             if (type === 'error') {
                 msgBox.classList.add('bg-red-900', 'text-red-300');
@@ -330,21 +339,24 @@
         }
 
         /**
-         * Converts BigInt or string balance (in smallest unit) to a readable fixed-point number (e.g., 18 decimals).
+         * Converts BigInt or string balance (in smallest unit) to a readable fixed-point number.
          */
         function formatUnits(amount, decimals = 18) {
             try {
                 return ethers.formatUnits(amount, decimals);
             } catch (e) {
-                return "Error";
+                return "0.0";
             }
         }
 
         /**
-         * Converts a human-readable number string (e.g., "1.5") to BigInt (in smallest unit).
+         * Converts a user-input string (e.g., "1.5") to a BigInt in its smallest unit.
          */
         function parseUnits(amount, decimals = 18) {
             try {
+                if (!amount || isNaN(parseFloat(amount))) {
+                    return 0n;
+                }
                 return ethers.parseUnits(amount, decimals);
             } catch (e) {
                 return 0n;
@@ -352,419 +364,322 @@
         }
 
         /**
-         * Dynamically updates the UI labels, colors, and symbols based on the current swap direction.
-         */
-        function updateSwapUI() {
-            const tokenIn = TOKEN_INFO[state.tokenInKey];
-            const tokenOut = TOKEN_INFO[state.tokenOutKey];
-
-            // Update Input Fields
-            document.getElementById('label-input').textContent = `You Pay (${tokenIn.symbol})`;
-            document.getElementById('symbol-input').textContent = tokenIn.symbol;
-            document.getElementById('symbol-input').className = `absolute right-3 top-3 px-3 py-1 bg-${tokenIn.inputColor}-900/50 text-${tokenIn.inputColor}-300 font-semibold rounded-lg`;
-
-            // Update Output Fields
-            document.getElementById('label-output').textContent = `You Receive (${tokenOut.symbol})`;
-            document.getElementById('symbol-output').textContent = tokenOut.symbol;
-            document.getElementById('symbol-output').className = `absolute right-3 top-3 px-3 py-1 bg-${tokenOut.inputColor}-900/50 text-${tokenOut.inputColor}-300 font-semibold rounded-lg`;
-            
-            // Update Fee Label
-            document.getElementById('fee-label').textContent = `Trade Fee (0.3% ${tokenIn.symbol}):`;
-
-            // Reset calculation fields
-            inputAmountEl.value = '';
-            outputAmountEl.value = '0.0';
-            document.getElementById('price-impact').textContent = '--';
-            document.getElementById('trade-fee').textContent = '--';
-
-            // Re-evaluate button state
-            updateOutput();
-        }
-
-        /**
-         * Flips the tokenIn and tokenOut keys and updates the UI.
-         */
-        function flipTokens() {
-            [state.tokenInKey, state.tokenOutKey] = [state.tokenOutKey, state.tokenInKey];
-            updateSwapUI();
-        }
-
-        /**
          * Sets up Ethers provider, signer, and contract instances.
-         * FIX: Added explicit eth_requestAccounts call to force connection prompt and prevent hanging.
          */
         async function setupEthers() {
             try {
-                // 1. Get Provider
                 if (!window.ethereum) {
                     throw new Error("MetaMask or similar provider not detected.");
                 }
                 
+                // FIX: Request accounts to force connection prompt and unblock signer
                 state.provider = new ethers.BrowserProvider(window.ethereum);
-
-                // 2. Request accounts to force connection prompt and unblock signer access
                 await state.provider.send('eth_requestAccounts', []);
                 
                 state.signer = await state.provider.getSigner();
-
-                // 3. Display Account Info
                 const address = await state.signer.getAddress();
                 accountInfoEl.textContent = `Account: ${address.substring(0, 6)}...`;
                 rpcDot.classList.replace('bg-red-500', 'bg-green-500');
 
-                // 4. Setup Contracts
+                // Setup Contracts
                 state.dexContract = new ethers.Contract(DEX_POOL_ADDRESS, DEX_ABI, state.signer);
                 state.mytaContract = new ethers.Contract(MY_TOKEN_A_ADDRESS, ERC20_ABI, state.signer);
                 state.mytbContract = new ethers.Contract(MY_TOKEN_B_ADDRESS, ERC20_ABI, state.signer);
                 
-                // 5. Fetch Token Sorting (Crucial for reserve mapping)
+                // Get sorted token addresses from the pool
                 state.token0Address = await state.dexContract.TOKEN_0();
                 state.token1Address = await state.dexContract.TOKEN_1();
 
-                // 6. Fetch Reserves
-                await getReserves();
+                // Dynamically assign which reserve (0 or 1) belongs to which token (MYTA or MYTB)
+                if (TOKEN_INFO.MYTA.address.toLowerCase() === state.token0Address.toLowerCase()) {
+                    TOKEN_INFO.MYTA.reserveKey = "reserve0";
+                    TOKEN_INFO.MYTB.reserveKey = "reserve1";
+                } else {
+                    TOKEN_INFO.MYTA.reserveKey = "reserve1";
+                    TOKEN_INFO.MYTB.reserveKey = "reserve0";
+                }
+                
+                await getReservesAndBalances();
                 
             } catch (error) {
                 console.error("Ethers Setup Error:", error);
-                
-                let errorMessage = "Connection failed. ";
-                if (!window.ethereum) {
-                    errorMessage += "Wallet provider (e.g., MetaMask) not found.";
-                } else if (error.code === 4001) {
-                    errorMessage += "Wallet connection rejected by the user.";
-                } else {
-                    errorMessage += `Ensure you are on the correct network (Arc Testnet). Error: ${error.message.substring(0, 50)}...`;
-                }
-
-                displayMessage(errorMessage, 'error');
-                
-                // Update UI to allow manual connection attempt
-                accountInfoEl.textContent = "Wallet Disconnected";
-                swapButton.textContent = "Connect Wallet";
-                if (window.ethereum) {
-                    swapButton.onclick = () => window.ethereum.request({ method: 'eth_requestAccounts' });
-                } else {
-                    swapButton.onclick = () => displayMessage("Please install a wallet provider (e.g., MetaMask).", 'error');
-                }
-                swapButton.disabled = false;
+                let readableError = error.message.length > 100 ? error.message.substring(0, 100) + "..." : error.message;
+                displayMessage(`Connection failed. Ensure you are on the correct network (Arc Testnet). Error: ${readableError}`, 'error');
+                swapButton.textContent = "Connection Error";
+                swapButton.disabled = true;
+                liquidityButton.textContent = "Connection Error";
                 liquidityButton.disabled = true;
             }
         }
         
         /**
-         * Fetches and displays the current reserves and user balances from the DEX pool.
+         * Fetches and displays the current reserves from the DEX pool.
          */
-        async function getReserves() {
-            if (!state.dexContract || !state.signer || !state.token0Address || !state.token1Address) return;
-
+        async function getReservesAndBalances() {
             try {
-                swapButton.textContent = "Fetching Data...";
-                swapButton.disabled = true;
-                liquidityButton.disabled = true;
-                
-                const userAddress = await state.signer.getAddress();
+                const [reserve0, reserve1, balanceA, balanceB] = await Promise.all([
+                    state.dexContract.reserve0(),
+                    state.dexContract.reserve1(),
+                    state.mytaContract.balanceOf(await state.signer.getAddress()),
+                    state.mytbContract.balanceOf(await state.signer.getAddress())
+                ]);
 
-                // Fetch raw reserves
-                const reserve0 = await state.dexContract.reserve0();
-                const reserve1 = await state.dexContract.reserve1();
-                
-                // Map raw reserves (0 and 1) to MYTA and MYTB based on sorting in the contract
-                const isMYTA_Token0 = state.token0Address.toLowerCase() === MY_TOKEN_A_ADDRESS.toLowerCase();
-                
-                state.reserveA = isMYTA_Token0 ? reserve0 : reserve1;
-                state.reserveB = isMYTA_Token0 ? reserve1 : reserve0;
-                state.isPoolReady = true;
-                
-                // Fetch user balances
-                const balanceA = await state.mytaContract.balanceOf(userAddress);
-                const balanceB = await state.mytbContract.balanceOf(userAddress);
+                // Store reserves based on sorted order
+                state.reserve0 = reserve0;
+                state.reserve1 = reserve1;
 
-                // Update UI (Reserves)
-                document.getElementById(TOKEN_INFO.MYTA.reserveId).textContent = `MYTA Reserve: ${formatUnits(state.reserveA, 18)}`;
-                document.getElementById(TOKEN_INFO.MYTB.reserveId).textContent = `MYTB Reserve: ${formatUnits(state.reserveB, 18)}`;
+                // Update UI for reserves based on which token is 0 or 1
+                document.getElementById(TOKEN_INFO.MYTA.reserveId.replace('reserve', 'reserve-')).textContent = `MYTA Reserve: ${formatUnits(state[TOKEN_INFO.MYTA.reserveKey])}`;
+                document.getElementById(TOKEN_INFO.MYTB.reserveId.replace('reserve', 'reserve-')).textContent = `MYTB Reserve: ${formatUnits(state[TOKEN_INFO.MYTB.reserveKey])}`;
                 
-                // Update UI (Balances)
-                document.getElementById(TOKEN_INFO.MYTA.balanceId).textContent = `Your MYTA: ${formatUnits(balanceA, 18)}`;
-                document.getElementById(TOKEN_INFO.MYTB.balanceId).textContent = `Your MYTB: ${formatUnits(balanceB, 18)}`;
-                
-                msgBox.classList.add('hidden');
+                // Update UI for balances
+                document.getElementById('balance-a').textContent = `Your MYTA: ${formatUnits(balanceA)}`;
+                document.getElementById('balance-b').textContent = `Your MYTB: ${formatUnits(balanceB)}`;
 
-                // Check for zero reserves
-                if (state.reserveA === 0n && state.reserveB === 0n) {
-                    displayMessage("Pool has 0 reserves. Use the LIQUIDITY tab to add the first deposit.", 'info');
-                    swapButton.textContent = "Add Liquidity First";
-                    swapButton.disabled = true;
-                    liquidityButton.disabled = false;
-                    document.getElementById('liquidity-note').textContent = "Note: This is the initial deposit. Both amounts must be greater than zero.";
-                } else {
-                    swapButton.textContent = "Enter Amount";
+                state.isPoolReady = state.reserve0 > 0n && state.reserve1 > 0n;
+
+                if (state.isPoolReady) {
+                    swapButton.textContent = "Swap";
                     swapButton.disabled = false;
+                    liquidityButton.textContent = "Add Liquidity";
                     liquidityButton.disabled = false;
-                    document.getElementById('liquidity-note').textContent = "Note: Subsequent deposits must maintain the current pool ratio.";
-                }
-
-                // Recalculate based on current tab and swap direction
-                if (state.currentTab === 'swap') {
-                    updateOutput();
                 } else {
-                    updateLiquidityRatio();
+                    swapButton.textContent = "Pool has no liquidity";
+                    swapButton.disabled = true;
+                    liquidityButton.textContent = "Add Initial Liquidity";
+                    liquidityButton.disabled = false; // Allow initial liquidity
                 }
-
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("Error fetching reserves or balances:", error);
                 displayMessage("Could not fetch pool reserves or balances. Check contract addresses and network connection.", 'error');
-                
-                // Update UI elements to reflect failure state
-                document.getElementById('reserve-a').textContent = `MYTA Reserve: --`;
-                document.getElementById('reserve-b').textContent = `MYTB Reserve: --`;
-                document.getElementById('balance-a').textContent = `Your MYTA: --`;
-                document.getElementById('balance-b').textContent = `Your MYTB: --`;
-
                 swapButton.textContent = "Error Loading";
                 swapButton.disabled = true;
+                liquidityButton.textContent = "Error Loading";
                 liquidityButton.disabled = true;
             }
         }
         
         /**
-         * Calculates the output amount using the Constant Product Market Maker formula:
-         * amountOut = (amountIn * reserveOut * 997) / (reserveIn * 1000 + amountIn * 997)
+         * Flips the tokenIn and tokenOut for swapping.
          */
-        function calculateSwapOutput(amountIn, reserveIn, reserveOut) {
-            if (reserveIn === 0n || reserveOut === 0n || amountIn === 0n) return 0n;
+        function flipTokens() {
+            [state.tokenInKey, state.tokenOutKey] = [state.tokenOutKey, state.tokenInKey];
+            
+            const tokenIn = TOKEN_INFO[state.tokenInKey];
+            const tokenOut = TOKEN_INFO[state.tokenOutKey];
 
-            const feeNumerator = 997n; // 0.3% fee
-            const feeDenominator = 1000n;
-            
-            const amountInWithFee = amountIn * feeNumerator;
-            const denominator = (reserveIn * feeDenominator) + amountInWithFee;
-            const numerator = amountInWithFee * reserveOut;
-            const amountOut = numerator / denominator;
-            
-            return amountOut;
+            // Update labels
+            document.getElementById('label-input').textContent = `You Pay (${tokenIn.symbol})`;
+            document.getElementById('label-output').textContent = `You Receive (${tokenOut.symbol})`;
+            document.getElementById('fee-label').textContent = `Trade Fee (0.3% ${tokenIn.symbol}):`;
+
+            // Update symbols and colors
+            const symbolInEl = document.getElementById('symbol-input');
+            symbolInEl.textContent = tokenIn.symbol;
+            symbolInEl.className = `absolute right-3 top-3 px-3 py-1 bg-${tokenIn.inputColor}-900/50 text-${tokenIn.inputColor}-300 font-semibold rounded-lg`;
+
+            const symbolOutEl = document.getElementById('symbol-output');
+            symbolOutEl.textContent = tokenOut.symbol;
+            symbolOutEl.className = `absolute right-3 top-3 px-3 py-1 bg-${tokenOut.inputColor}-900/50 text-${tokenOut.inputColor}-300 font-semibold rounded-lg`;
+
+            // Recalculate output
+            updateOutput();
         }
 
         /**
-         * Handles real-time input for swap and updates the estimated output based on direction.
+         * Calculates the output amount using the Constant Product Market Maker formula.
+         */
+        function getAmountOut(amountIn, reserveIn, reserveOut) {
+            if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) {
+                return 0n;
+            }
+            const amountInWithFee = amountIn * 997n; // 0.3% fee
+            const numerator = amountInWithFee * reserveOut;
+            const denominator = (reserveIn * 1000n) + amountInWithFee;
+            return numerator / denominator;
+        }
+
+        /**
+         * Handles real-time input and updates the estimated output.
          */
         function updateOutput() {
             if (!state.isPoolReady) return;
 
-            const inputString = inputAmountEl.value;
-            const inputVal = parseFloat(inputString);
-            
-            if (!inputString || isNaN(inputVal) || inputVal <= 0) {
-                outputAmountEl.value = '0.0';
-                document.getElementById('price-impact').textContent = '--';
-                document.getElementById('trade-fee').textContent = '--';
-                swapButton.textContent = "Enter Amount";
-                swapButton.disabled = state.reserveA === 0n; 
-                return;
-            }
-
             try {
-                const amountInWei = parseUnits(inputString, 18);
-                
-                // Determine reserves based on current swap direction
-                const isAToB = state.tokenInKey === 'MYTA';
-                const reserveIn = isAToB ? state.reserveA : state.reserveB;
-                const reserveOut = isAToB ? state.reserveB : state.reserveA;
-                
-                const amountOutWei = calculateSwapOutput(amountInWei, reserveIn, reserveOut);
-                const amountOutDisplay = formatUnits(amountOutWei, 18);
-                outputAmountEl.value = parseFloat(amountOutDisplay).toFixed(6);
+                const tokenIn = TOKEN_INFO[state.tokenInKey];
+                const tokenOut = TOKEN_INFO[state.tokenOutKey];
 
-                // Update reserves for price impact calculation
-                const reserveIn_after = reserveIn + amountInWei;
-                const reserveOut_after = reserveOut - amountOutWei;
-                
-                let priceBefore, priceAfter;
+                const reserveIn = state[tokenIn.reserveKey];
+                const reserveOut = state[tokenOut.reserveKey];
 
-                // Price is always Token B / Token A (Reserve B / Reserve A)
-                const R_A = isAToB ? reserveIn : reserveOut;
-                const R_B = isAToB ? reserveOut : reserveIn;
-                
-                priceBefore = Number(formatUnits(R_B)) / Number(formatUnits(R_A));
-                priceAfter = Number(formatUnits(reserveOut_after)) / Number(formatUnits(reserveIn_after));
+                const inputVal = inputAmountEl.value;
+                const amountIn = parseUnits(inputVal);
 
-                // Price impact calculation
-                const impact = ((priceAfter - priceBefore) / priceBefore) * 100;
-                
-                // Calculate Fee (0.3% of input)
-                const tradeFeeWei = amountInWei * 3n / 1000n; 
-                const tradeFeeDisplay = formatUnits(tradeFeeWei, 18);
-
-                document.getElementById('price-impact').textContent = `${impact.toFixed(4)}%`;
-                document.getElementById('trade-fee').textContent = `${parseFloat(tradeFeeDisplay).toFixed(6)} ${state.tokenInKey}`;
-
-                swapButton.textContent = `Swap ${state.tokenInKey} for ${state.tokenOutKey}`;
-                swapButton.disabled = false;
-
-            } catch (error) {
-                console.error("Swap Calculation Error:", error);
-                outputAmountEl.value = 'Error';
-                swapButton.textContent = "Error";
-                swapButton.disabled = true;
-            }
-        }
-
-        /**
-         * Handles real-time input for liquidity and updates the proportional B amount.
-         */
-        function updateLiquidityRatio() {
-            const inputStringA = inputAmountAEl.value;
-            const inputStringB = inputAmountBEl.value;
-            const inputValA = parseFloat(inputStringA);
-            
-            // If zero reserves, B is not proportional, and user sets both.
-            if (state.reserveA === 0n && state.reserveB === 0n) {
-                // If reserve B is being updated too, ensure it's not relying on A
-                if (inputAmountBEl.value === '0.0' || inputAmountBEl.value === '') {
-                     inputAmountBEl.value = inputStringA; // Simple 1:1 suggestion for initial liquidity
+                if (amountIn === 0n) {
+                    outputAmountEl.value = '0.0';
+                    document.getElementById('price-impact').textContent = '--';
+                    document.getElementById('trade-fee').textContent = '--';
+                    return;
                 }
-                return; 
-            }
-
-            if (!inputStringA || isNaN(inputValA) || inputValA <= 0) {
-                inputAmountBEl.value = '0.0';
-                return;
-            }
-            
-            try {
-                // Calculate required B amount based on current ratio: B_out = A_in * (Reserve_B / Reserve_A)
-                const ratio = Number(state.reserveB) / Number(state.reserveA);
-                const amountB_num = inputValA * ratio;
-
-                inputAmountBEl.value = amountB_num.toFixed(6);
                 
+                const amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
+                outputAmountEl.value = formatUnits(amountOut);
+
+                // Calculate Price Impact
+                const newReserveIn = reserveIn + amountIn;
+                const newReserveOut = reserveOut - amountOut;
+                // (newPrice - midPrice) / midPrice
+                const midPrice = (reserveIn * 1000000n) / reserveOut;
+                const newPrice = (newReserveIn * 1000000n) / newReserveOut;
+                const impact = ((newPrice - midPrice) * 10000n) / midPrice;
+                document.getElementById('price-impact').textContent = `${formatUnits(impact, 4)}%`;
+
+                // Calculate Fee
+                const fee = (amountIn * 3n) / 1000n; // 0.3%
+                document.getElementById('trade-fee').textContent = `${formatUnits(fee, 18)} ${tokenIn.symbol}`;
+
             } catch (error) {
-                console.error("Liquidity Calculation Error:", error);
-                inputAmountBEl.value = 'Error';
+                console.error("Calculation Error:", error);
+                outputAmountEl.value = 'Error';
             }
         }
 
         /**
-         * Executes the approve and swap transactions, dynamically choosing the token to approve.
+         * Calculates the required amount of Token B given Token A for liquidity.
+         */
+        function updateLiquidityRatio(anchor) {
+            if (!state.isPoolReady) return; // Only apply ratio if pool is ready
+
+            try {
+                const reserveA = state[TOKEN_INFO.MYTA.reserveKey];
+                const reserveB = state[TOKEN_INFO.MYTB.reserveKey];
+
+                if (anchor === 'A') {
+                    const amountA = parseUnits(inputAmountAEl.value);
+                    const amountB = (amountA * reserveB) / reserveA;
+                    inputAmountBEl.value = formatUnits(amountB);
+                } else if (anchor === 'B') {
+                    const amountB = parseUnits(inputAmountBEl.value);
+                    const amountA = (amountB * reserveA) / reserveB;
+                    inputAmountAEl.value = formatUnits(amountA);
+                }
+            } catch (e) {
+                // Handle division by zero if reserves are 0
+                if (anchor === 'A') inputAmountBEl.value = '';
+                if (anchor === 'B') inputAmountAEl.value = '';
+            }
+        }
+
+        /**
+         * Executes the approve and swap transactions.
          */
         async function handleSwap() {
-            if (!state.isPoolReady || !state.signer || swapButton.disabled) return;
-
-            const inputString = inputAmountEl.value;
-            if (parseFloat(inputString) <= 0 || !inputString) {
-                displayMessage("Please enter a valid amount.", 'error');
+            if (!state.isPoolReady || !state.signer) {
+                displayMessage("Wallet not connected or pool not ready.", 'error');
                 return;
             }
-            const amountInWei = parseUnits(inputString, 18);
-            const tokenIn = TOKEN_INFO[state.tokenInKey];
-            
-            swapButton.textContent = `Waiting for ${tokenIn.symbol} Approval...`;
+
+            const tokenInInfo = TOKEN_INFO[state.tokenInKey];
+            const tokenInContract = state[tokenInInfo.contractKey];
+            const amountIn = parseUnits(inputAmountEl.value);
+
+            if (amountIn === 0n) {
+                displayMessage("Cannot swap 0 tokens.", 'error');
+                return;
+            }
+
+            swapButton.textContent = "Processing...";
             swapButton.disabled = true;
+            displayMessage("Please approve the token spend in your wallet...", 'info');
 
             try {
-                // 1. Get the correct token contract (either MYTA or MYTB)
-                const tokenContract = state[tokenIn.contractKey];
-
-                // 2. Check/Execute Approve
-                displayMessage(`Awaiting approval transaction for ${tokenIn.symbol}...`, 'info');
-                // Approving MAX_INT is a common UX practice to only approve once
-                const MAX_INT = 2n**256n - 1n; 
-                const approveTx = await tokenContract.approve(DEX_POOL_ADDRESS, MAX_INT);
+                // 1. Approve
+                const approveTx = await tokenInContract.approve(DEX_POOL_ADDRESS, amountIn);
                 await approveTx.wait();
+                displayMessage("Approval successful! Now confirm the swap...", 'info');
 
-                displayMessage(`${tokenIn.symbol} Approval confirmed. Awaiting Swap...`, 'info');
-
-                // 3. Execute Swap
-                const swapTx = await state.dexContract.swap(tokenIn.address, amountInWei);
+                // 2. Swap
+                const swapTx = await state.dexContract.swap(tokenInInfo.address, amountIn);
                 await swapTx.wait();
-
-                displayMessage(`Swap successful! Tx: ${swapTx.hash.substring(0, 10)}...`, 'success');
+                
+                displayMessage("Swap successful!", 'success');
+                await getReservesAndBalances(); // Refresh state
+                inputAmountEl.value = '';
+                outputAmountEl.value = '';
 
             } catch (error) {
-                console.error("Swap Transaction Failed:", error);
-                const message = error.reason || error.message || "Unknown error during swap.";
-                displayMessage(`Transaction Error: ${message}`, 'error');
-
+                console.error("Swap Error:", error);
+                displayMessage(`Swap failed: ${error.reason || error.message}`, 'error');
             } finally {
-                swapButton.textContent = `Swap ${state.tokenInKey} for ${state.tokenOutKey}`;
+                swapButton.textContent = "Swap";
                 swapButton.disabled = false;
-                await getReserves();
             }
         }
-
+        
         /**
-         * Executes the approve and addLiquidity transactions.
+         * --- CRITICAL FIX: Executes the new addLiquidity transaction ---
          */
         async function handleAddLiquidity() {
-            if (!state.isPoolReady || !state.signer || liquidityButton.disabled) return;
-
-            const inputStringA = inputAmountAEl.value;
-            const inputStringB = inputAmountBEl.value;
-            const amountA = parseFloat(inputStringA);
-            const amountB = parseFloat(inputStringB);
-
-            if (amountA <= 0 || amountB <= 0 || isNaN(amountA) || isNaN(amountB)) {
-                displayMessage("Please enter valid, non-zero amounts for both tokens.", 'error');
+            if (!state.signer) {
+                displayMessage("Wallet not connected.", 'error');
                 return;
             }
             
-            const amountAWei = parseUnits(inputStringA, 18);
-            const amountBWei = parseUnits(inputStringB, 18);
+            const amountADesired = parseUnits(inputAmountAEl.value);
+            const amountBDesired = parseUnits(inputAmountBEl.value);
 
-            liquidityButton.textContent = "Waiting for Approval...";
+            if (amountADesired === 0n || amountBDesired === 0n) {
+                displayMessage("Both amounts must be greater than zero.", 'error');
+                return;
+            }
+
+            liquidityButton.textContent = "Processing...";
             liquidityButton.disabled = true;
+            displayMessage("Please approve MYTA spend in your wallet...", 'info');
 
             try {
-                const MAX_INT = 2n**256n - 1n;
+                // 1. Approve MYTA
+                const approveATx = await state.mytaContract.approve(DEX_POOL_ADDRESS, amountADesired);
+                await approveATx.wait();
+                displayMessage("MYTA approved! Please approve MYTB spend...", 'info');
 
-                // 1. Approve Token A
-                displayMessage("Awaiting approval transaction for MYTA...", 'info');
-                let approveTxA = await state.mytaContract.approve(DEX_POOL_ADDRESS, MAX_INT);
-                await approveTxA.wait();
+                // 2. Approve MYTB
+                const approveBTx = await state.mytbContract.approve(DEX_POOL_ADDRESS, amountBDesired);
+                await approveBTx.wait();
+                displayMessage("MYTB approved! Now confirm adding liquidity...", 'info');
                 
-                // 2. Approve Token B
-                displayMessage("MYTA Approved. Awaiting approval transaction for MYTB...", 'info');
-                let approveTxB = await state.mytbContract.approve(DEX_POOL_ADDRESS, MAX_INT);
-                await approveTxB.wait();
-
-                displayMessage(`Approvals confirmed. Awaiting Add Liquidity transaction...`, 'info');
-
                 // 3. Add Liquidity
-                // NOTE: The contract expects amounts corresponding to TOKEN_0 and TOKEN_1, 
-                // but since the addLiquidity function is simplistic and checks the ratio 
-                // against current balances, we pass A then B here as the contract handles the 
-                // transferFrom calls internally in a sorted manner.
-                const liquidityTx = await state.dexContract.addLiquidity(amountAWei, amountBWei);
+                // Call the new, robust addLiquidity function with 4 arguments
+                const liquidityTx = await state.dexContract.addLiquidity(
+                    MY_TOKEN_A_ADDRESS,
+                    MY_TOKEN_B_ADDRESS,
+                    amountADesired,
+                    amountBDesired
+                );
                 await liquidityTx.wait();
-
-                displayMessage(`Liquidity added successfully! Tx: ${liquidityTx.hash.substring(0, 10)}...`, 'success');
                 
-            } catch (error) {
-                console.error("Liquidity Transaction Failed:", error);
-                const message = error.reason || error.message || "Unknown error during liquidity deposit. Check ratio or balances.";
-                displayMessage(`Transaction Error: ${message}`, 'error');
+                displayMessage("Liquidity added successfully!", 'success');
+                await getReservesAndBalances(); // Refresh state
+                inputAmountAEl.value = '';
+                inputAmountBEl.value = '';
 
+            } catch (error) {
+                console.error("Add Liquidity Error:", error);
+                displayMessage(`Failed to add liquidity: ${error.reason || "transaction reverted"}`, 'error');
             } finally {
                 liquidityButton.textContent = "Add Liquidity";
                 liquidityButton.disabled = false;
-                await getReserves();
             }
         }
-
-        // Expose functions globally for the HTML button clicks
-        window.flipTokens = flipTokens;
-        window.showTab = showTab;
-        window.handleSwap = handleSwap;
-        window.handleAddLiquidity = handleAddLiquidity;
-        window.updateOutput = updateOutput;
-        window.updateLiquidityRatio = updateLiquidityRatio;
 
 
         // Initialize Ethers on window load
         window.onload = function() {
-            showTab('swap'); // Set default tab view
-            // setupEthers is called by Firebase auth listener or fallback
-            // Set up a refresh interval to keep reserves and balances updated
-            setInterval(getReserves, 30000); 
+            if (!firebaseConfig) {
+                 // setupEthers(); // Already called in the non-config branch
+            }
+            // Set up interval to refresh reserves every 30 seconds
+            setInterval(getReservesAndBalances, 30000);
         };
     </script>
 
