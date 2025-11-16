@@ -1,0 +1,10 @@
+forge script script/PerformSwap.s.sol:PerformSwapScript \
+    --rpc-url $ARC_TESTNET_RPC_URL \
+    --broadcast \
+    -vvvv
+
+
+forge script script/InitLiquidity.s.sol:InitLiquidityScript \
+    --rpc-url $ARC_TESTNET_RPC_URL \
+    --broadcast \
+    -vvvv
