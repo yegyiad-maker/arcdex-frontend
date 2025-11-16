@@ -2,661 +2,277 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArcDEX Frontend - Bi-Directional Swap</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/ethers@6.11.1/dist/ethers.umd.min.js"></script>
+    <title>ArcDEX Multi-Pool</title>
+    <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0d1117; /* Dark background */
-        }
-        /* Custom scrollbar for better aesthetics */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 3px; }
-        ::-webkit-scrollbar-track { background: #161b22; }
+        /* ... (CSS styles omitted for brevity, identical to previous) ... */
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 600px; margin: 40px auto; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); background-color: #fff; }
+        h1 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .section { margin-bottom: 25px; padding: 20px; border: 1px dashed #ced4da; border-radius: 8px; background-color: #f8f9fa; }
+        input, select, button { padding: 12px; margin: 8px 0; width: 100%; box-sizing: border-box; border-radius: 6px; border: 1px solid #ced4da; }
+        button { background-color: #007bff; color: white; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+        #message { margin-top: 20px; padding: 15px; border-radius: 6px; font-weight: bold; }
+        .status-info { margin-bottom: 15px; font-size: 0.9em; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
+<body>
 
-    <div id="dex-app" class="w-full max-w-lg bg-[#161b22] shadow-2xl rounded-xl p-6 md:p-8">
-        <h1 class="text-3xl font-extrabold text-white text-center mb-6">
-            <span class="text-indigo-400">ArcDEX</span> Interface
-        </h1>
-
-        <div class="text-xs text-gray-400 mb-4 flex justify-between items-center">
-            <div id="auth-status" class="px-2 py-1 rounded-full bg-yellow-900 text-yellow-300">
-                Authenticating...
-            </div>
-            <div id="network-status" class="flex items-center">
-                <div class="h-2 w-2 rounded-full bg-red-500 mr-2" id="rpc-dot"></div>
-                <span id="account-info">Wallet Not Connected</span>
-            </div>
-        </div>
-
-        <div id="reserve-display" class="bg-[#0d1117] p-4 rounded-lg mb-6 border border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-300 mb-2">Pool Reserves & Your Balances</h2>
-            <p id="reserve-a" class="text-sm text-green-400">MYTA Reserve: Loading...</p>
-            <p id="reserve-b" class="text-sm text-purple-400">MYTB Reserve: Loading...</p>
-            <hr class="my-2 border-gray-800">
-            <p id="balance-a" class="text-sm text-gray-300">Your MYTA: Loading...</p>
-            <p id="balance-b" class="text-sm text-gray-300">Your MYTB: Loading...</p>
+    <div class="container">
+        <h1>ArcDEX Multi-Pool</h1>
+        <div class="status-info">
+            <p>Wallet Status: <span id="walletStatus">Not Connected</span></p>
+            <p>Active Pool: <span id="poolAddressDisplay">None Selected</span></p>
+            <p id="poolReserves">Current Reserves: N/A</p>
         </div>
         
-        <div class="flex mb-4 border-b border-gray-700">
-            <button id="tab-swap" onclick="showTab('swap')" class="flex-1 py-2 text-center text-lg font-semibold border-b-2 border-indigo-500 text-white transition-colors duration-200 hover:text-indigo-400">
-                Swap
-            </button>
-            <button id="tab-liquidity" onclick="showTab('liquidity')" class="flex-1 py-2 text-center text-lg font-semibold border-b-2 border-transparent text-gray-500 transition-colors duration-200 hover:text-purple-400">
-                Liquidity
-            </button>
+        <div id="message"></div>
+
+        <div class="section">
+            <h2>💧 Add Liquidity</h2>
+            <select id="liqTokenA">
+                <option value="USDC">USDC</option>
+                <option value="MYTA">MYTA</option>
+                <option value="MYTB">MYTB</option>
+            </select>
+            <input type="number" id="liqAmountA" placeholder="Amount A">
+            
+            <select id="liqTokenB">
+                <option value="MYTA">MYTA</option>
+                <option value="MYTB">MYTB</option>
+                <option value="USDC">USDC</option>
+            </select>
+            <input type="number" id="liqAmountB" placeholder="Amount B">
+            
+            <button onclick="handleAddLiquidity()">Add Liquidity</button>
         </div>
 
-        <div id="swap-card" class="bg-[#0d1117] p-5 rounded-lg border border-indigo-700/50">
-            <div class="space-y-4">
-                <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
-                    <label id="label-input" class="block text-sm font-medium text-gray-400 mb-1">You Pay (MYTA)</label>
-                    <input type="number" id="input-amount" oninput="updateOutput()" placeholder="0.0"
-                           class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
-                    <div id="symbol-input" class="absolute right-3 top-3 px-3 py-1 bg-indigo-900/50 text-indigo-300 font-semibold rounded-lg">
-                        MYTA
-                    </div>
-                </div>
-
-                <div class="flex justify-center -my-2 z-10">
-                    <button onclick="flipTokens()" title="Flip tokens" 
-                            class="p-2 bg-gray-700 border-4 border-[#0d1117] rounded-full text-white shadow-lg transition-transform hover:rotate-180 hover:bg-indigo-500">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L11 6.414V14a1 1 0 11-2 0V6.414L7.707 8.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-
-                <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
-                    <label id="label-output" class="block text-sm font-medium text-gray-400 mb-1">You Receive (MYTB)</label>
-                    <input type="text" id="output-amount" placeholder="0.0" readonly
-                           class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
-                    <div id="symbol-output" class="absolute right-3 top-3 px-3 py-1 bg-purple-900/50 text-purple-300 font-semibold rounded-lg">
-                        MYTB
-                    </div>
-                </div>
-            </div>
-
-            <div class="text-xs text-gray-500 mt-4 space-y-1">
-                <div class="flex justify-between">
-                    <span>Price Impact:</span>
-                    <span id="price-impact" class="text-red-400">--</span>
-                </div>
-                <div class="flex justify-between">
-                    <span id="fee-label">Trade Fee (0.3% MYTA):</span>
-                    <span id="trade-fee" class="text-gray-300">--</span>
-                </div>
-            </div>
-
-            <button id="swap-button" onclick="handleSwap()"
-                    class="w-full mt-6 py-3 px-4 rounded-xl text-lg font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors duration-200 disabled:bg-gray-600"
-                    disabled>
-                Loading...
-            </button>
+        <div class="section">
+            <h2>↔️ Token Swap</h2>
+            <select id="swapTokenIn" onchange="getReservesAndBalances()">
+                <option value="USDC">USDC</option>
+                <option value="MYTA">MYTA</option>
+                <option value="MYTB">MYTB</option>
+            </select>
+            <input type="number" id="swapAmountIn" placeholder="Amount In">
+            <select id="swapTokenOut" onchange="getReservesAndBalances()">
+                <option value="MYTA">MYTA</option>
+                <option value="MYTB">MYTB</option>
+                <option value="USDC">USDC</option>
+            </select>
+            <button onclick="handleSwap()">Swap Tokens</button>
         </div>
-        
-        <div id="liquidity-card" class="bg-[#0d1117] p-5 rounded-lg border border-purple-700/50 hidden">
-            <h2 class="text-xl font-bold text-white mb-4">Add Liquidity</h2>
-            <div class="space-y-4">
-                <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Amount MYTA</label>
-                    <input type="number" id="input-amount-a" oninput="updateLiquidityRatio('A')" placeholder="0.0"
-                           class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
-                    <div class="absolute right-3 top-3 px-3 py-1 bg-indigo-900/50 text-indigo-300 font-semibold rounded-lg">
-                        MYTA
-                    </div>
-                </div>
-
-                <div class="relative bg-[#161b22] p-3 rounded-xl border border-gray-700">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">Amount MYTB</label>
-                    <input type="number" id="input-amount-b" oninput="updateLiquidityRatio('B')" placeholder="0.0"
-                           class="w-full bg-transparent text-white text-2xl font-bold focus:outline-none placeholder-gray-600 appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-outer-spin-button]:m-0"/>
-                    <div class="absolute right-3 top-3 px-3 py-1 bg-purple-900/50 text-purple-300 font-semibold rounded-lg">
-                        MYTB
-                    </div>
-                </div>
-            </div>
-
-            <p id="liquidity-note" class="text-xs text-gray-500 mt-4">
-                Note: For initial liquidity, both amounts must be greater than zero. Subsequent deposits must match the current pool ratio.
-            </p>
-
-            <button id="add-liquidity-button" onclick="handleAddLiquidity()"
-                    class="w-full mt-6 py-3 px-4 rounded-xl text-lg font-bold text-white bg-purple-600 hover:bg-purple-700 transition-colors duration-200 disabled:bg-gray-600"
-                    disabled>
-                Add Liquidity
-            </button>
-        </div>
-
-        <div id="message-box" class="mt-4 p-3 hidden rounded-lg text-sm" role="alert"></div>
-
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
-        // Global variables provided by the Canvas environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        
-        let db, auth;
-        let isAuthReady = false;
-
-        if (firebaseConfig) {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            window.db = db; // Attach to window for global access if needed
-            window.auth = auth;
-
-            // Auth Listener
-            onAuthStateChanged(auth, async (user) => {
-                const authStatusEl = document.getElementById('auth-status');
-                if (user) {
-                    authStatusEl.textContent = `User ID: ${user.uid.substring(0, 8)}...`;
-                    authStatusEl.className = 'px-2 py-1 rounded-full bg-green-900 text-green-300 text-xs';
-                    isAuthReady = true;
-                    // Proceed to Ethers setup once authenticated
-                    setupEthers();
-                } else {
-                    authStatusEl.textContent = 'Not Signed In';
-                    authStatusEl.className = 'px-2 py-1 rounded-full bg-red-900 text-red-300 text-xs';
-                }
-            });
-
-            // Sign in immediately using the custom token or anonymously
-            async function authenticateUser() {
-                try {
-                    if (initialAuthToken) {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                } catch (error) {
-                    console.error("Firebase Auth Error:", error);
-                    document.getElementById('auth-status').textContent = 'Auth Failed';
-                }
-            }
-            authenticateUser();
-
-        } else {
-            document.getElementById('auth-status').textContent = 'Firebase Config Missing';
-            // If config is missing, proceed directly to Ethers setup
-            setupEthers();
-        }
-
-    </script>
-
     <script>
-        // --- 🛑 UPDATE THESE ADDRESSES AFTER YOU RE-DEPLOY 🛑 ---
-        // You MUST replace these with the new addresses from your 'DeployArcDEX.s.sol' output.
-        const DEX_POOL_ADDRESS = "0x106A4bfb4b7709bc809dC01C4972e7DeC91b0f80"; 
-        const MY_TOKEN_A_ADDRESS = "0xa654C7Ef6Ba495A77550D629f2b05bEF3e15c588";     
-        const MY_TOKEN_B_ADDRESS = "0xECE33627200cA2430058EFFe099112852C65A5D6";     
-        // ----------------------------------------------------
-
-        // Token Configuration Map
-        const TOKEN_INFO = {
-            MYTA: { 
-                address: MY_TOKEN_A_ADDRESS, 
-                symbol: "MYTA", 
-                reserveKey: "reserve0", // Will be set dynamically
-                balanceId: "balance-a", 
-                contractKey: "mytaContract",
-                inputColor: 'indigo'
-            },
-            MYTB: { 
-                address: MY_TOKEN_B_ADDRESS, 
-                symbol: "MYTB", 
-                reserveKey: "reserve1", // Will be set dynamically
-                balanceId: "balance-b", 
-                contractKey: "mytbContract",
-                inputColor: 'purple'
-            }
+        // --- CONSTANTS AND CONFIGURATION ---
+        
+        // 🛑 CRITICAL: REPLACE THESE PLACEHOLDERS WITH YOUR DEPLOYED ADDRESSES
+        const ARC_USDC_ADDRESS = "0x3600000000000000000000000000000000000000"; // Fixed Arc Testnet USDC
+        const MYTA_ADDRESS = "0xa654C7Ef6Ba495A77550D629f2b05bEF3e15c588"; 
+        const MYTB_ADDRESS = "0xECE33627200cA2430058EFFe099112852C65A5D6"; 
+        const USDC_MYTA_POOL = "0x17b8CB279403798Af128F09093c40BAfD72FAe77";
+        const USDC_MYTB_POOL = "0x3727df20d3a36440076c671159a2DC99652fE301";
+        const MYTA_MYTB_POOL = "0xf15C905d07Af533B9300d55277331009377A9dB1";
+        
+        // Token Symbol to Address Mapping
+        const tokenNameToAddress = {
+            "USDC": ARC_USDC_ADDRESS,
+            "MYTA": MYTA_ADDRESS,
+            "MYTB": MYTB_ADDRESS,
         };
 
-        // Standard ERC-20 ABI
+        // Pool Address Mapping (Key is tokens sorted alphabetically for consistency)
+        const poolAddressMap = {
+            "MYTA/USDC": USDC_MYTA_POOL,
+            "MYTB/USDC": USDC_MYTB_POOL, 
+            "MYTA/MYTB": MYTA_MYTB_POOL,
+        };
+        
+        // ABI definitions (partial)
+        const POOL_ABI = [
+            { "constant": true, "inputs": [], "name": "getReserves", "outputs": [{ "name": "reserveA", "type": "uint256" }, { "name": "reserveB", "type": "uint256" }], "type": "function" },
+            { "constant": false, "inputs": [{ "name": "tokenA", "type": "address" }, { "name": "tokenB", "type": "address" }, { "name": "amountADesired", "type": "uint256" }, { "name": "amountBDesired", "type": "uint256" }], "name": "addLiquidity", "outputs": [{ "name": "amount0", "type": "uint256" }, { "name": "amount1", "type": "uint256" }], "type": "function" },
+            { "constant": false, "inputs": [{ "name": "tokenIn", "type": "address" }, { "name": "amountIn", "type": "uint256" }], "name": "swap", "outputs": [], "type": "function" }
+        ];
+
         const ERC20_ABI = [
-            "function approve(address spender, uint256 amount) returns (bool)",
-            "function allowance(address owner, address spender) view returns (uint256)",
-            "function transferFrom(address sender, address recipient, uint256 amount) returns (bool)",
-            "function balanceOf(address account) view returns (uint256)",
-            "function symbol() view returns (string)"
+            { "constant": false, "inputs": [{ "name": "spender", "type": "address" }, { "name": "amount", "type": "uint256" }], "name": "approve", "outputs": [{ "name": "", "type": "bool" }], "type": "function" },
+            { "constant": true, "inputs": [{ "name": "owner", "type": "address" }], "name": "balanceOf", "outputs": [{ "name": "", "type": "uint256" }], "type": "function" }
         ];
 
-        // --- Correct DEX ABI ---
-        const DEX_ABI = [
-            "function reserve0() view returns (uint256)",
-            "function reserve1() view returns (uint256)",
-            "function TOKEN_0() view returns (address)",
-            "function TOKEN_1() view returns (address)",
-            "function swap(address _tokenIn, uint256 _amountIn)",
-            // New signature for addLiquidity
-            "function addLiquidity(address tokenA, address tokenB, uint256 amountADesired, uint256 amountBDesired) returns (uint256 amount0, uint256 amount1)"
-        ];
-
-        // Global state
-        let state = {
-            provider: null,
-            signer: null,
-            dexContract: null,
-            mytaContract: null,
-            mytbContract: null,
-            reserve0: 0n, // Use BigInts for reserve math
-            reserve1: 0n,
-            isPoolReady: false,
-            currentTab: 'swap',
-            tokenInKey: 'MYTA', // Default input token is MYTA
-            tokenOutKey: 'MYTB', // Default output token is MYTB
-            token0Address: '', // Store the sorted token 0 address
-            token1Address: '', // Store the sorted token 1 address
-        };
-
-        // UI elements
-        const swapButton = document.getElementById('swap-button');
-        const liquidityButton = document.getElementById('add-liquidity-button');
-        const inputAmountEl = document.getElementById('input-amount');
-        const outputAmountEl = document.getElementById('output-amount');
-        const inputAmountAEl = document.getElementById('input-amount-a');
-        const inputAmountBEl = document.getElementById('input-amount-b');
-        const rpcDot = document.getElementById('rpc-dot');
-        const accountInfoEl = document.getElementById('account-info');
-        const msgBox = document.getElementById('message-box');
-
-        // Make functions globally accessible for onclick handlers
-        window.showTab = showTab;
-        window.flipTokens = flipTokens;
-        window.updateOutput = updateOutput;
-        window.handleSwap = handleSwap;
-        window.handleAddLiquidity = handleAddLiquidity;
-        window.updateLiquidityRatio = updateLiquidityRatio;
-
-        /**
-         * Switches the active tab (Swap or Liquidity).
-         */
-        function showTab(tabName) {
-            state.currentTab = tabName;
-            document.getElementById('swap-card').classList.toggle('hidden', tabName !== 'swap');
-            document.getElementById('liquidity-card').classList.toggle('hidden', tabName !== 'liquidity');
-
-            document.getElementById('tab-swap').classList.toggle('border-indigo-500', tabName === 'swap');
-            document.getElementById('tab-swap').classList.toggle('text-white', tabName === 'swap');
-            document.getElementById('tab-swap').classList.toggle('border-transparent', tabName !== 'swap');
-            document.getElementById('tab-swap').classList.toggle('text-gray-500', tabName !== 'swap');
-
-            document.getElementById('tab-liquidity').classList.toggle('border-purple-500', tabName === 'liquidity');
-            document.getElementById('tab-liquidity').classList.toggle('text-white', tabName === 'liquidity');
-            document.getElementById('tab-liquidity').classList.toggle('border-transparent', tabName !== 'liquidity');
-            document.getElementById('tab-liquidity').classList.toggle('text-gray-500', tabName !== 'liquidity');
-        }
-
-        /**
-         * Utility to display messages/errors in the dedicated box.
-         * --- FIX 3: Corrected 'bg-blue-9CO0' to 'bg-blue-900' ---
-         */
-        function displayMessage(message, type = 'info') {
-            msgBox.textContent = message;
-            // Removed 'bg-blue-9CO0' and replaced with 'bg-blue-900'
-            msgBox.classList.remove('hidden', 'bg-red-900', 'bg-green-900', 'bg-blue-900', 'text-red-300', 'text-green-300', 'text-blue-300');
-            
-            if (type === 'error') {
-                msgBox.classList.add('bg-red-900', 'text-red-300');
-            } else if (type === 'success') {
-                msgBox.classList.add('bg-green-900', 'text-green-300');
-            } else {
-                msgBox.classList.add('bg-blue-900', 'text-blue-300');
-            }
-        }
-
-        /**
-         * Converts BigInt or string balance (in smallest unit) to a readable fixed-point number.
-         */
-        function formatUnits(amount, decimals = 18) {
-            try {
-                return ethers.formatUnits(amount, decimals);
-            } catch (e) {
-                return "0.0";
-            }
-        }
-
-        /**
-         * Converts a user-input string (e.g., "1.5") to a BigInt in its smallest unit.
-         */
-        function parseUnits(amount, decimals = 18) {
-            try {
-                if (!amount || isNaN(parseFloat(amount))) {
-                    return 0n;
-                }
-                return ethers.parseUnits(amount, decimals);
-            } catch (e) {
-                return 0n;
-            }
-        }
-
-        /**
-         * Sets up Ethers provider, signer, and contract instances.
-         */
-        async function setupEthers() {
-            try {
-                if (!window.ethereum) {
-                    throw new Error("MetaMask or similar provider not detected.");
-                }
-                
-                // Request accounts to force connection prompt and unblock signer
-                state.provider = new ethers.BrowserProvider(window.ethereum);
-                await state.provider.send('eth_requestAccounts', []);
-                
-                state.signer = await state.provider.getSigner();
-                const address = await state.signer.getAddress();
-                accountInfoEl.textContent = `Account: ${address.substring(0, 6)}...`;
-                rpcDot.classList.replace('bg-red-500', 'bg-green-500');
-
-                // Setup Contracts
-                state.dexContract = new ethers.Contract(DEX_POOL_ADDRESS, DEX_ABI, state.signer);
-                state.mytaContract = new ethers.Contract(MY_TOKEN_A_ADDRESS, ERC20_ABI, state.signer);
-                state.mytbContract = new ethers.Contract(MY_TOKEN_B_ADDRESS, ERC20_ABI, state.signer);
-                
-                // Get sorted token addresses from the pool
-                state.token0Address = await state.dexContract.TOKEN_0();
-                state.token1Address = await state.dexContract.TOKEN_1();
-
-                // Dynamically assign which reserve (0 or 1) belongs to which token (MYTA or MYTB)
-                if (TOKEN_INFO.MYTA.address.toLowerCase() === state.token0Address.toLowerCase()) {
-                    TOKEN_INFO.MYTA.reserveKey = "reserve0";
-                    TOKEN_INFO.MYTB.reserveKey = "reserve1";
-                } else {
-                    TOKEN_INFO.MYTA.reserveKey = "reserve1";
-                    TOKEN_INFO.MYTB.reserveKey = "reserve0";
-                }
-                
-                await getReservesAndBalances();
-                
-            } catch (error) {
-                console.error("Ethers Setup Error:", error);
-                let readableError = error.message.length > 100 ? error.message.substring(0, 100) + "..." : error.message;
-                displayMessage(`Connection failed. Ensure you are on the correct network (Arc Testnet). Error: ${readableError}`, 'error');
-                swapButton.textContent = "Connection Error";
-                swapButton.disabled = true;
-                liquidityButton.textContent = "Connection Error";
-                liquidityButton.disabled = true;
-            }
-        }
+        // Global variables
+        let web3;
+        let accounts;
         
+        // --- UTILITY FUNCTIONS ---
+
+        function displayMessage(text, isError = false) {
+            const msgElement = document.getElementById('message');
+            msgElement.textContent = text;
+            msgElement.style.borderColor = isError ? 'red' : 'green';
+            msgElement.style.color = isError ? 'red' : 'green';
+        }
+
         /**
-         * Fetches and displays the current reserves from the DEX pool.
-         * --- FIX 2: Corrected UI update logic ---
+         * @notice Determines the correct pool address based on the two token symbols.
          */
+        function getPoolContract(tokenA, tokenB) {
+            // Ensure the tokens are sorted alphabetically to form a consistent key
+            const sortedSymbols = [tokenA, tokenB].sort();
+            const poolKey = `${sortedSymbols[0]}/${sortedSymbols[1]}`;
+            
+            const poolAddress = poolAddressMap[poolKey];
+
+            if (!poolAddress || poolAddress.includes("PASTE_")) {
+                document.getElementById('poolAddressDisplay').textContent = "ERROR: Pool not configured for this pair!";
+                return null;
+            }
+            
+            document.getElementById('poolAddressDisplay').textContent = `Active Pool: ${poolKey} (${poolAddress.substring(0, 6)}...)`;
+            
+            return new web3.eth.Contract(POOL_ABI, poolAddress);
+        }
+
         async function getReservesAndBalances() {
-            try {
-                const [reserve0, reserve1, balanceA, balanceB] = await Promise.all([
-                    state.dexContract.reserve0(),
-                    state.dexContract.reserve1(),
-                    state.mytaContract.balanceOf(await state.signer.getAddress()),
-                    state.mytbContract.balanceOf(await state.signer.getAddress())
-                ]);
-
-                // Store reserves based on sorted order
-                state.reserve0 = reserve0;
-                state.reserve1 = reserve1;
-
-                // --- FIX: Use static IDs 'reserve-a' and 'reserve-b' ---
-                // The previous code used a non-existent 'reserveId' property.
-                document.getElementById('reserve-a').textContent = `MYTA Reserve: ${formatUnits(state[TOKEN_INFO.MYTA.reserveKey])}`;
-                document.getElementById('reserve-b').textContent = `MYTB Reserve: ${formatUnits(state[TOKEN_INFO.MYTB.reserveKey])}`;
-                
-                // Update UI for balances
-                document.getElementById('balance-a').textContent = `Your MYTA: ${formatUnits(balanceA)}`;
-                document.getElementById('balance-b').textContent = `Your MYTB: ${formatUnits(balanceB)}`;
-
-                state.isPoolReady = state.reserve0 > 0n && state.reserve1 > 0n;
-
-                if (state.isPoolReady) {
-                    swapButton.textContent = "Swap";
-                    swapButton.disabled = false;
-                    liquidityButton.textContent = "Add Liquidity";
-                    liquidityButton.disabled = false;
-                } else {
-                    swapButton.textContent = "Pool has no liquidity";
-                    swapButton.disabled = true;
-                    liquidityButton.textContent = "Add Initial Liquidity";
-                    liquidityButton.disabled = false; // Allow initial liquidity
-                }
-            } catch (error) {
-                console.error("Error fetching reserves or balances:", error);
-                displayMessage("Could not fetch pool reserves or balances. Check contract addresses and network connection.", 'error');
-                swapButton.textContent = "Error Loading";
-                swapButton.disabled = true;
-                liquidityButton.textContent = "Error Loading";
-                liquidityButton.disabled = true;
-            }
-        }
-        
-        /**
-         * Flips the tokenIn and tokenOut for swapping.
-         */
-        function flipTokens() {
-            [state.tokenInKey, state.tokenOutKey] = [state.tokenOutKey, state.tokenInKey];
+            const tokenInSymbol = document.getElementById('swapTokenIn').value;
+            const tokenOutSymbol = document.getElementById('swapTokenOut').value;
             
-            const tokenIn = TOKEN_INFO[state.tokenInKey];
-            const tokenOut = TOKEN_INFO[state.tokenOutKey];
-
-            // Update labels
-            document.getElementById('label-input').textContent = `You Pay (${tokenIn.symbol})`;
-            document.getElementById('label-output').textContent = `You Receive (${tokenOut.symbol})`;
-            document.getElementById('fee-label').textContent = `Trade Fee (0.3% ${tokenIn.symbol}):`;
-
-            // Update symbols and colors
-            const symbolInEl = document.getElementById('symbol-input');
-            symbolInEl.textContent = tokenIn.symbol;
-            symbolInEl.className = `absolute right-3 top-3 px-3 py-1 bg-${tokenIn.inputColor}-900/50 text-${tokenIn.inputColor}-300 font-semibold rounded-lg`;
-
-            const symbolOutEl = document.getElementById('symbol-output');
-            symbolOutEl.textContent = tokenOut.symbol;
-            symbolOutEl.className = `absolute right-3 top-3 px-3 py-1 bg-${tokenOut.inputColor}-900/50 text-${tokenOut.inputColor}-300 font-semibold rounded-lg`;
-
-            // Recalculate output
-            updateOutput();
-        }
-
-        /**
-         * Calculates the output amount using the Constant Product Market Maker formula.
-         */
-        function getAmountOut(amountIn, reserveIn, reserveOut) {
-            if (amountIn <= 0n || reserveIn <= 0n || reserveOut <= 0n) {
-                return 0n;
-            }
-            const amountInWithFee = amountIn * 997n; // 0.3% fee
-            const numerator = amountInWithFee * reserveOut;
-            const denominator = (reserveIn * 1000n) + amountInWithFee;
-            return numerator / denominator;
-        }
-
-        /**
-         * Handles real-time input and updates the estimated output.
-         */
-        function updateOutput() {
-            if (!state.isPoolReady) return;
-
-            try {
-                const tokenIn = TOKEN_INFO[state.tokenInKey];
-                const tokenOut = TOKEN_INFO[state.tokenOutKey];
-
-                const reserveIn = state[tokenIn.reserveKey];
-                const reserveOut = state[tokenOut.reserveKey];
-
-                const inputVal = inputAmountEl.value;
-                const amountIn = parseUnits(inputVal);
-
-                if (amountIn === 0n) {
-                    outputAmountEl.value = '0.0';
-                    document.getElementById('price-impact').textContent = '--';
-                    document.getElementById('trade-fee').textContent = '--';
-                    return;
-                }
-                
-                const amountOut = getAmountOut(amountIn, reserveIn, reserveOut);
-                outputAmountEl.value = formatUnits(amountOut);
-
-                // Calculate Price Impact
-                const newReserveIn = reserveIn + amountIn;
-                const newReserveOut = reserveOut - amountOut;
-                // (newPrice - midPrice) / midPrice
-                const midPrice = (reserveIn * 1000000n) / reserveOut;
-                const newPrice = (newReserveIn * 1000000n) / newReserveOut;
-                const impact = ((newPrice - midPrice) * 10000n) / midPrice;
-                document.getElementById('price-impact').textContent = `${formatUnits(impact, 4)}%`;
-
-                // Calculate Fee
-                const fee = (amountIn * 3n) / 1000n; // 0.3%
-                document.getElementById('trade-fee').textContent = `${formatUnits(fee, 18)} ${tokenIn.symbol}`;
-
-            } catch (error) {
-                console.error("Calculation Error:", error);
-                outputAmountEl.value = 'Error';
-            }
-        }
-
-        /**
-         * Calculates the required amount of Token B given Token A for liquidity.
-         */
-        function updateLiquidityRatio(anchor) {
-            if (!state.isPoolReady) return; // Only apply ratio if pool is ready
-
-            try {
-                const reserveA = state[TOKEN_INFO.MYTA.reserveKey];
-                const reserveB = state[TOKEN_INFO.MYTB.reserveKey];
-
-                if (anchor === 'A') {
-                    const amountA = parseUnits(inputAmountAEl.value);
-                    const amountB = (amountA * reserveB) / reserveA;
-                    inputAmountBEl.value = formatUnits(amountB);
-                } else if (anchor === 'B') {
-                    const amountB = parseUnits(inputAmountBEl.value);
-                    const amountA = (amountB * reserveA) / reserveB;
-                    inputAmountAEl.value = formatUnits(amountA);
-                }
-            } catch (e) {
-                // Handle division by zero if reserves are 0
-                if (anchor === 'A') inputAmountBEl.value = '';
-                if (anchor === 'B') inputAmountAEl.value = '';
-            }
-        }
-
-        /**
-         * Executes the approve and swap transactions.
-         */
-        async function handleSwap() {
-            if (!state.isPoolReady || !state.signer) {
-                displayMessage("Wallet not connected or pool not ready.", 'error');
+            if (tokenInSymbol === tokenOutSymbol) {
+                document.getElementById('poolReserves').textContent = 'Select two different tokens.';
                 return;
             }
-
-            const tokenInInfo = TOKEN_INFO[state.tokenInKey];
-            const tokenInContract = state[tokenInInfo.contractKey];
-            const amountIn = parseUnits(inputAmountEl.value);
-
-            if (amountIn === 0n) {
-                displayMessage("Cannot swap 0 tokens.", 'error');
-                return;
-            }
-
-            swapButton.textContent = "Processing...";
-            swapButton.disabled = true;
-            displayMessage("Please approve the token spend in your wallet...", 'info');
+            
+            const poolContract = getPoolContract(tokenInSymbol, tokenOutSymbol);
+            if (!poolContract) return;
 
             try {
-                // 1. Approve
-                const approveTx = await tokenInContract.approve(DEX_POOL_ADDRESS, amountIn);
-                await approveTx.wait();
-                displayMessage("Approval successful! Now confirm the swap...", 'info');
-
-                // 2. Swap
-                const swapTx = await state.dexContract.swap(tokenInInfo.address, amountIn);
-                await swapTx.wait();
+                // Get Pool Reserves
+                const result = await poolContract.methods.getReserves().call();
                 
-                displayMessage("Swap successful!", 'success');
-                await getReservesAndBalances(); // Refresh state
-                inputAmountEl.value = '';
-                outputAmountEl.value = '';
+                const reserveA = web3.utils.fromWei(result.reserveA);
+                const reserveB = web3.utils.fromWei(result.reserveB);
+                
+                document.getElementById('poolReserves').textContent = 
+                    `Reserves (A/B order): ${parseFloat(reserveA).toFixed(2)}, ${parseFloat(reserveB).toFixed(2)}`;
 
             } catch (error) {
-                console.error("Swap Error:", error);
-                displayMessage(`Swap failed: ${error.reason || error.message}`, 'error');
-            } finally {
-                swapButton.textContent = "Swap";
-                swapButton.disabled = false;
+                console.error("Error fetching reserves:", error);
+                document.getElementById('poolReserves').textContent = 'Error fetching reserves (Is pool deployed?).';
             }
         }
-        
-        /**
-         * --- FIX 1: Completed the addLiquidity transaction ---
-         */
+
+        async function approveToken(tokenAddress, amount, spenderAddress) {
+            const tokenContract = new web3.eth.Contract(ERC20_ABI, tokenAddress);
+            const amountWei = web3.utils.toWei(amount.toString(), 'ether');
+
+            displayMessage(`Approving ${amount} on ${tokenAddress}...`);
+
+            await tokenContract.methods.approve(spenderAddress, amountWei)
+                .send({ from: accounts[0] })
+                .on('transactionHash', function(hash){
+                    displayMessage(`Approval transaction sent: ${hash.substring(0, 10)}...`);
+                });
+        }
+
+
+        // --- MAIN APPLICATION LOGIC ---
+
+        async function initWeb3() {
+            if (window.ethereum) {
+                web3 = new Web3(window.ethereum);
+                try {
+                    accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    document.getElementById('walletStatus').textContent = `Connected: ${accounts[0].substring(0, 6)}...`;
+                    
+                    getReservesAndBalances();
+                    // Poll for updates on reserves
+                    setInterval(getReservesAndBalances, 5000); 
+                } catch (error) {
+                    displayMessage("Wallet connection failed.", true);
+                }
+            } else {
+                displayMessage("Please install MetaMask!", true);
+            }
+        }
+
         async function handleAddLiquidity() {
-            if (!state.signer) {
-                displayMessage("Wallet not connected.", 'error');
-                return;
-            }
+            const tokenASymbol = document.getElementById('liqTokenA').value;
+            const tokenBSymbol = document.getElementById('liqTokenB').value;
+            const amountA = document.getElementById('liqAmountA').value;
+            const amountB = document.getElementById('liqAmountB').value;
             
-            const amountADesired = parseUnits(inputAmountAEl.value);
-            const amountBDesired = parseUnits(inputAmountBEl.value);
+            if (tokenASymbol === tokenBSymbol) return displayMessage("Tokens must be different.", true);
+            if (!amountA || !amountB || amountA <= 0 || amountB <= 0) return displayMessage("Enter valid amounts.", true);
+            
+            const poolContract = getPoolContract(tokenASymbol, tokenBSymbol);
+            if (!poolContract) return;
 
-            if (amountADesired === 0n || amountBDesired === 0n) {
-                displayMessage("Both amounts must be greater than zero.", 'error');
-                return;
-            }
-
-            liquidityButton.textContent = "Processing...";
-            liquidityButton.disabled = true;
-            displayMessage("Please approve MYTA spend in your wallet...", 'info');
+            const poolAddress = poolContract._address;
+            const tokenAAddress = tokenNameToAddress[tokenASymbol];
+            const tokenBAddress = tokenNameToAddress[tokenBSymbol];
+            const amountAWei = web3.utils.toWei(amountA, 'ether');
+            const amountBWei = web3.utils.toWei(amountB, 'ether');
 
             try {
-                // 1. Approve MYTA
-                const approveATx = await state.mytaContract.approve(DEX_POOL_ADDRESS, amountADesired);
-                await approveATx.wait();
-                displayMessage("MYTA approved! Please approve MYTB spend...", 'info');
+                // 1. Approve Token A to the specific pool
+                await approveToken(tokenAAddress, amountA, poolAddress);
+                // 2. Approve Token B to the specific pool
+                await approveToken(tokenBAddress, amountB, poolAddress);
 
-                // 2. Approve MYTB
-                const approveBTx = await state.mytbContract.approve(DEX_POOL_ADDRESS, amountBDesired);
-                await approveBTx.wait();
-                displayMessage("MYTB approved! Now confirm adding liquidity...", 'info');
-                
-                // 3. Add Liquidity (This part was missing)
-                // We must pass all 4 arguments as required by the new contract function
-                const addLiqTx = await state.dexContract.addLiquidity(
-                    MY_TOKEN_A_ADDRESS,
-                    MY_TOKEN_B_ADDRESS,
-                    amountADesired,
-                    amountBDesired
-                );
-                await addLiqTx.wait();
-
-                displayMessage("Liquidity added successfully!", 'success');
-                await getReservesAndBalances(); // Refresh state
-                inputAmountAEl.value = '';
-                inputAmountBEl.value = '';
+                // 3. Add Liquidity
+                displayMessage("Sending Add Liquidity transaction...");
+                await poolContract.methods.addLiquidity(tokenAAddress, tokenBAddress, amountAWei, amountBWei)
+                    .send({ from: accounts[0] })
+                    .on('receipt', function(receipt){
+                        displayMessage(`Liquidity added successfully! Tx: ${receipt.transactionHash.substring(0, 10)}...`);
+                        getReservesAndBalances();
+                    });
 
             } catch (error) {
-                console.error("Add Liquidity Error:", error);
-                displayMessage(`Adding liquidity failed: ${error.reason || error.message}`, 'error');
-            } finally {
-                // Set text based on pool state
-                if (state.isPoolReady) {
-                    liquidityButton.textContent = "Add Liquidity";
-                } else {
-                    liquidityButton.textContent = "Add Initial Liquidity";
-                }
-                liquidityButton.disabled = false;
+                console.error("Add Liquidity failed:", error);
+                displayMessage("Add Liquidity failed. Check console for details.", true);
             }
         }
+
+        async function handleSwap() {
+            const tokenInSymbol = document.getElementById('swapTokenIn').value;
+            const tokenOutSymbol = document.getElementById('swapTokenOut').value;
+            const amountIn = document.getElementById('swapAmountIn').value;
+            
+            if (tokenInSymbol === tokenOutSymbol) return displayMessage("Tokens must be different.", true);
+            if (!amountIn || amountIn <= 0) return displayMessage("Enter a valid amount to swap.", true);
+            
+            const poolContract = getPoolContract(tokenInSymbol, tokenOutSymbol);
+            if (!poolContract) return;
+
+            const poolAddress = poolContract._address;
+            const tokenInAddress = tokenNameToAddress[tokenInSymbol];
+            const amountInWei = web3.utils.toWei(amountIn, 'ether');
+
+            try {
+                // 1. Approve Token In to the specific pool
+                await approveToken(tokenInAddress, amountIn, poolAddress);
+
+                // 2. Perform Swap
+                displayMessage("Sending Swap transaction...");
+                await poolContract.methods.swap(tokenInAddress, amountInWei)
+                    .send({ from: accounts[0] })
+                    .on('receipt', function(receipt){
+                        displayMessage(`Swap successful! Check reserves. Tx: ${receipt.transactionHash.substring(0, 10)}...`);
+                        getReservesAndBalances();
+                    });
+
+            } catch (error) {
+                console.error("Swap failed:", error);
+                displayMessage("Swap failed. Check console for details.", true);
+            }
+        }
+
+        window.addEventListener('load', initWeb3);
+
     </script>
+
 </body>
 </html>
