@@ -8,9 +8,9 @@ import {console} from "forge-std/console.sol";
 
 contract InitLiquidityScript is Script {
     // 🛑 YOU MUST UPDATE THESE 3 ADDRESSES AFTER RE-DEPLOYING
-    address constant DEX_POOL_ADDRESS = 0x106A4bfb4b7709bc809dC01C4972e7DeC91b0f80; // NEW Pool Address
-    address constant MY_TOKEN_A_ADDRESS = 0xa654C7Ef6Ba495A77550D629f2b05bEF3e15c588; // NEW MYTA Address
-    address constant MY_TOKEN_B_ADDRESS = 0xECE33627200cA2430058EFFe099112852C65A5D6; // NEW MYTB Address
+    address constant DEX_POOL_ADDRESS = 0x6b60604B001A868654e01F0449cAB985C701B4c7; // NEW Pool Address
+    address constant MY_TOKEN_A_ADDRESS = 0x839c2fA1D8F82226362041B77ACCf46A0B7bb223; // NEW MYTA Address
+    address constant MY_TOKEN_B_ADDRESS = 0x893dc36ab15E7E8f67E56B13cd080E96550841fB; // NEW MYTB Address
     // ---------------------------------------------------------------------
 
     // 1000 tokens of each, assuming 18 decimals
